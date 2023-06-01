@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<module>
+	<name>productosvendidossinstock</name>
+	<displayName><![CDATA[Gestión de productos vendidos sin stock]]></displayName>
+	<version><![CDATA[1.0.0]]></version>
+	<description><![CDATA[Módulo que recoge los productos con permitir pedido activado y vendidos sin stock.]]></description>
+	<author><![CDATA[Sergio]]></author>
+	<tab><![CDATA[administration]]></tab>
+	<is_configurable>1</is_configurable>
+	<need_instance>1</need_instance>
+</module>
