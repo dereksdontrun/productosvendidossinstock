@@ -281,12 +281,15 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
             $id_customer = $producto_vendido_sin_stock_etc[0]['id_customer'];
 
             //sacamos id_status de Esperando productos
-            $sql_id_esperando_productos = "SELECT ost.id_order_state as id_esperando_productos
-            FROM lafrips_order_state ost
-            JOIN lafrips_order_state_lang osl ON osl.id_order_state = ost.id_order_state AND osl.id_lang = 1
-            WHERE osl.name = 'Esperando productos'
-            AND ost.deleted = 0";
-            $id_esperando_productos = Db::getInstance()->executeS($sql_id_esperando_productos)[0]['id_esperando_productos'];
+            // $sql_id_esperando_productos = "SELECT ost.id_order_state as id_esperando_productos
+            // FROM lafrips_order_state ost
+            // JOIN lafrips_order_state_lang osl ON osl.id_order_state = ost.id_order_state AND osl.id_lang = 1
+            // WHERE osl.name = 'Esperando productos'
+            // AND ost.deleted = 0";
+            // $id_esperando_productos = Db::getInstance()->executeS($sql_id_esperando_productos)[0]['id_esperando_productos'];
+
+            //30/06/2023
+            $id_esperando_productos = Configuration::get(PS_ESPERANDO_PRODUCTOS);
 
             //comprobamos si ese producto ya está como checked en la tabla, si está mostramos error
             if ($checked){
@@ -317,7 +320,7 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
                 return;
             }
             
-            //si no está marcado, lo marcamos como checked, ponemos fecha date_checked,metemos un mensaje en su pedido diciendo que el producto está revisado por tal empleado, comprobamos si hay más productos vendidos sin stock en ese pedido, si los hay comprobamos si están checked. Si no lo están, lo dejamos así, si todos están checked comprobamos el estado actual del pedido, si es Sin Stock Pagado, lo pasariamos a Esperando Productos, añadiendo también un mensaje
+            //si no está marcado, lo marcamos como checked, ponemos fecha date_checked,metemos un mensaje en su pedido diciendo que el producto está revisado por tal empleado, comprobamos si hay más productos vendidos sin stock en ese pedido, si los hay comprobamos si están checked. Si no lo están, lo dejamos así, si todos están checked comprobamos el estado actual del pedido, si es Sin Stock Pagado, lo pasariamos a Completando Pedido, añadiendo también un mensaje
 
             //marcamos checked y date checked, y empleado en lafrips_productos_vendidos_sin_stock.
             $sql_update_productos_vendidos_sin_stock = 'UPDATE lafrips_productos_vendidos_sin_stock
@@ -415,11 +418,11 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
                 return;
 
             } elseif ($id_esperando_productos) {
-                //todos los productos vendidos sin stock en el pedido están revisados. comprobamos si el estado actual de pedido es Sin Stock Pagado, o si ya está en Esperando productos. Si está en Sin stock pagado lo pasamos a Esperando productos, con mensaje de success y mensaje privado en pedido. Si el pedido está ya en Esperando productos, mostramos warning diciéndolo. Si no está en ninguno de los dos estados, no lo cambiamos, pero mostramos aviso.
+                //todos los productos vendidos sin stock en el pedido están revisados. comprobamos si el estado actual de pedido es Sin Stock Pagado, o si ya está en Completando Pedido. Si está en Sin stock pagado lo pasamos a Completando Pedido, con mensaje de success y mensaje privado en pedido. Si el pedido está ya en Completando Pedido, mostramos warning diciéndolo. Si no está en ninguno de los dos estados, no lo cambiamos, pero mostramos aviso.
                 if ($current_state == Configuration::get(PS_OS_OUTOFSTOCK_PAID)){
                     //cambiamos estado, metemos mensaje a pedido y mostramos mensaje success ¿?. actualizamos el estado en lafrips_productos_vendidos_sin_stock
                     //se genera un objeto $history para crear los movimientos, asignandole el id del pedido sobre el que trabajamos            
-                    //cambiamos estado de orden a Esperando productos, ponemos id_employee 44 que es Automatizador, para log
+                    //cambiamos estado de orden a Completando Pedido, ponemos id_employee 44 que es Automatizador, para log
                     $history = new OrderHistory();
                     $history->id_order = $id_order;
                     $history->id_employee = 44;
@@ -441,7 +444,7 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
                     //metemos mensaje privado al pedido, ya tenemos abierto el customer_thread del mensaje de producto revisado
                     //generamos mensaje para pedido sin stock pagado para producto revisado
                     $fecha = date("d-m-Y H:i:s");
-                    $mensaje_pedido_sin_stock_estado = 'Pedido cambiado a Esperando Productos                     
+                    $mensaje_pedido_sin_stock_estado = 'Pedido cambiado a Completando Pedido                     
                     revisado por '.$nombre_empleado.' el '.$fecha;
 
                     if ($ct->id){
@@ -455,8 +458,8 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
 
                     //mostramos mensaje de ok 
                     $this->confirmations[] = $this->l("Producto en pedido ".$id_order." marcado como Revisado.");
-                    $this->confirmations[] = $this->l('Pedido '.$id_order.' pasado a Esperando Productos, con todos sus productos vendidos sin stock revisados. ');
-                    //$this->displayWarning('Pedido pasado a Esperando Productos, con todos sus productos vendidos sin stock están revisados');
+                    $this->confirmations[] = $this->l('Pedido '.$id_order.' pasado a Completando Pedido, con todos sus productos vendidos sin stock revisados. ');
+                    //$this->displayWarning('Pedido pasado a Completando Pedido, con todos sus productos vendidos sin stock están revisados');
                     return;
                     
                 } elseif ($current_state == $id_esperando_productos){
@@ -474,7 +477,7 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
                     return;
 
                 } else {
-                    //está en otro estado, mostramos warning pero no cambiamos a esperando productos, actualizamos el estado en lafrips_productos_vendidos_sin_stock
+                    //está en otro estado, mostramos warning pero no cambiamos a Completando Pedido, actualizamos el estado en lafrips_productos_vendidos_sin_stock
                     //cambiamos esatdo en lafrips_productos_vendidos_sin_stock
                     $sql_update_productos_vendidos_sin_stock = 'UPDATE lafrips_productos_vendidos_sin_stock
                                 SET                                                      
@@ -484,13 +487,13 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
                     Db::getInstance()->execute($sql_update_productos_vendidos_sin_stock);
 
                     $this->confirmations[] = $this->l('Producto en pedido '.$id_order.' marcado como Revisado. ');
-                    $this->displayWarning('El pedido '.$id_order.' no está en estado Pedido Sin Stock Pagado - No se cambia a Esperando Productos. Todos sus productos vendidos sin stock están revisados. ');
+                    $this->displayWarning('El pedido '.$id_order.' no está en estado Pedido Sin Stock Pagado - No se cambia a Completando Pedido. Todos sus productos vendidos sin stock están revisados. ');
                     $this->errors[] = Tools::displayError('Revisar estado de pedido '.$id_order.' manualmente. ');
                     return;
                 }
 
             } else {
-                $this->errors[] = Tools::displayError('El estado Esperando productos no se encuentra, imposible cambiar');
+                $this->errors[] = Tools::displayError('El estado Completando Pedido no se encuentra, imposible cambiar');
                 return;
             }
 
@@ -539,12 +542,15 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
                 $id_productos_vendidos_sin_stock = $pedido['id_productos_vendidos_sin_stock'];
 
                 //sacamos id_status de Esperando productos
-                $sql_id_esperando_productos = "SELECT ost.id_order_state as id_esperando_productos
-                FROM lafrips_order_state ost
-                JOIN lafrips_order_state_lang osl ON osl.id_order_state = ost.id_order_state AND osl.id_lang = 1
-                WHERE osl.name = 'Esperando productos'
-                AND ost.deleted = 0";
-                $id_esperando_productos = Db::getInstance()->executeS($sql_id_esperando_productos)[0]['id_esperando_productos'];
+                // $sql_id_esperando_productos = "SELECT ost.id_order_state as id_esperando_productos
+                // FROM lafrips_order_state ost
+                // JOIN lafrips_order_state_lang osl ON osl.id_order_state = ost.id_order_state AND osl.id_lang = 1
+                // WHERE osl.name = 'Esperando productos'
+                // AND ost.deleted = 0";
+                // $id_esperando_productos = Db::getInstance()->executeS($sql_id_esperando_productos)[0]['id_esperando_productos'];
+
+                //30/06/2023
+                $id_esperando_productos = Configuration::get(PS_ESPERANDO_PRODUCTOS);
 
                 //por cada pedido y producto, marcamos checked y date checked, y empleado en lafrips_productos_vendidos_sin_stock.
                 $sql_update_productos_vendidos_sin_stock = 'UPDATE lafrips_productos_vendidos_sin_stock
@@ -641,11 +647,11 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
                     continue;
 
                 } elseif ($id_esperando_productos) {
-                    //todos los productos vendidos sin stock en el pedido están revisados. comprobamos si el estado actual de pedido es Sin Stock Pagado, o si ya está en Esperando productos. Si está en Sin stock pagado lo pasamos a Esperando productos, con mensaje de success y mensaje privado en pedido. Si el pedido está ya en Esperando productos, mostramos warning diciéndolo. Si no está en ninguno de los dos estados, no lo cambiamos, pero mostramos aviso.
+                    //todos los productos vendidos sin stock en el pedido están revisados. comprobamos si el estado actual de pedido es Sin Stock Pagado, o si ya está en Completando Pedido. Si está en Sin stock pagado lo pasamos a Completando Pedido, con mensaje de success y mensaje privado en pedido. Si el pedido está ya en Completando Pedido, mostramos warning diciéndolo. Si no está en ninguno de los dos estados, no lo cambiamos, pero mostramos aviso.
                     if ($current_state == Configuration::get(PS_OS_OUTOFSTOCK_PAID)){
                         //cambiamos estado, metemos mensaje a pedido y mostramos mensaje success. Actualizamos el estado en lafrips_productos_vendidos_sin_stock
                         //se genera un objeto $history para crear los movimientos, asignándole el id del pedido sobre el que trabajamos            
-                        //cambiamos estado de orden a Esperando productos, ponemos id_employee 44 que es Automatizador, para log
+                        //cambiamos estado de orden a Completando Pedido, ponemos id_employee 44 que es Automatizador, para log
                         $history = new OrderHistory();
                         $history->id_order = $id_order;
                         $history->id_employee = 44;
@@ -667,7 +673,7 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
                         //metemos mensaje privado al pedido, ya tenemos abierto el customer_thread del mensaje de producto revisado
                         //generamos mensaje para pedido sin stock pagado para producto revisado
                         $fecha = date("d-m-Y H:i:s");
-                        $mensaje_pedido_sin_stock_estado = 'Pedido cambiado a Esperando Productos                     
+                        $mensaje_pedido_sin_stock_estado = 'Pedido cambiado a Completando Pedido                     
                         revisado por '.$nombre_empleado.' el '.$fecha;
 
                         $cm_interno_cambio_estado = new CustomerMessage();
@@ -679,8 +685,8 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
 
                         //mostramos mensaje de ok 
                         $this->confirmations[] = $this->l('Producto en pedido '.$id_order.' marcado como Revisado. ');
-                        $this->confirmations[] = $this->l('Pedido '.$id_order.' pasado a Esperando Productos, con todos sus productos vendidos sin stock revisados. ');
-                        //$this->displayWarning('Pedido pasado a Esperando Productos, con todos sus productos vendidos sin stock están revisados');
+                        $this->confirmations[] = $this->l('Pedido '.$id_order.' pasado a Completando Pedido, con todos sus productos vendidos sin stock revisados. ');
+                        //$this->displayWarning('Pedido pasado a Completando Pedido, con todos sus productos vendidos sin stock están revisados');
                         continue;
                         
                     } elseif ($current_state == $id_esperando_productos){
@@ -698,7 +704,7 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
                         continue;
 
                     } else {
-                        //está en otro estado, mostramos warning pero no cambiamos a esperando productos, actualizamos el estado en lafrips_productos_vendidos_sin_stock
+                        //está en otro estado, mostramos warning pero no cambiamos a Completando Pedido, actualizamos el estado en lafrips_productos_vendidos_sin_stock
                         //cambiamos estado en lafrips_productos_vendidos_sin_stock
                         $sql_update_productos_vendidos_sin_stock = 'UPDATE lafrips_productos_vendidos_sin_stock
                                     SET                                                      
@@ -708,13 +714,13 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
                         Db::getInstance()->execute($sql_update_productos_vendidos_sin_stock);
 
                         $this->confirmations[] = $this->l('Producto en pedido '.$id_order.' marcado como Revisado. ');
-                        $this->displayWarning('El pedido '.$id_order.' no está en estado Pedido Sin Stock Pagado - No se cambia a Esperando Productos. Todos sus productos vendidos sin stock están revisados. ');
+                        $this->displayWarning('El pedido '.$id_order.' no está en estado Pedido Sin Stock Pagado - No se cambia a Completando Pedido. Todos sus productos vendidos sin stock están revisados. ');
                         $this->errors[] = Tools::displayError('Revisar estado de pedido '.$id_order.' manualmente. ');
                         continue;
                     }
 
                 } else {
-                    $this->errors[] = Tools::displayError('El estado Esperando productos no se encuentra, imposible cambiar');
+                    $this->errors[] = Tools::displayError('El estado Completando Pedido no se encuentra, imposible cambiar');
                     continue;
                 }
 

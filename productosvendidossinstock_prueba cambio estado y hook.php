@@ -89,6 +89,7 @@ class Productosvendidossinstock extends Module
             $this->registerHook('header') &&
             $this->registerHook('backOfficeHeader') &&
             $this->registerHook('actionOrderStatusPostUpdate') &&
+            $this->registerHook('actionObjectOrderHistoryAddAfter') &&
             $this->registerHook('displayAdminOrder') && 
             $this->registerHook('displayBackOfficeHeader'); 
     }
@@ -298,6 +299,73 @@ class Productosvendidossinstock extends Module
     //     $this->context->controller->addCSS($this->_path.'/views/css/front.css');
     // }
 
+    // CONTENIDO PARAMS hookActionObjectOrderHistoryAddAfter
+    //  {
+    //     "object": {
+    //         "id_order": 362558,
+    //         "id_order_state": 30,
+    //         "id_employee": 22,
+    //         "date_add": "2023-06-14 17:03:52",
+    //         "date_upd": "2023-06-14 17:03:52",
+    //         "id": "1148991",
+    //         "id_shop_list": null,
+    //         "force_id": false
+    //     },
+    //     "cookie": {
+            
+    //     },
+    //     "cart": {
+    //         "id": 1014657,
+    //         "id_shop_group": "1",
+    //         "id_shop": "1",
+    //         "id_address_delivery": "722801",
+    //         "id_address_invoice": "722801",
+    //         "id_currency": "1",
+    //         "id_customer": "35817",
+    //         "id_guest": "109237738",
+    //         "id_lang": "1",
+    //         "recyclable": "0",
+    //         "gift": "0",
+    //         "gift_message": "",
+    //         "mobile_theme": "0",
+    //         "date_add": "2023-06-14 13:38:21",
+    //         "secure_key": "7a4f63cb90ef91e1ba0473e4134f0249",
+    //         "id_carrier": "509",
+    //         "date_upd": "2023-06-14 13:38:46",
+    //         "checkedTos": false,
+    //         "pictures": null,
+    //         "textFields": null,
+    //         "delivery_option": "a:1:{i:722801;s:4:\"509,\";}",
+    //         "allow_seperated_package": "0",
+    //         "id_shop_list": null,
+    //         "force_id": false
+    //     },
+    //     "altern": 1
+    //     }
+     
+
+    public function hookActionObjectOrderHistoryAddAfter($params)
+    {
+        // $jsonData = json_encode($params);
+        // $path = _PS_ROOT_DIR_."/proveedores/karactermania/pedidos/params_history.json";
+        // file_put_contents($path, $jsonData);
+
+        if ($params) {
+            $new_order_history = $params['object'];
+            if (Validate::isLoadedObject($new_order_history) && $new_order_history->id_order_state == Configuration::get(PS_OS_OUTOFSTOCK_PAID)){ 
+                
+                $id_order = $new_order_history->id_order;
+
+                //el hook ya ha cumplido su cometido, llamamos a otra función que será la que comience el proceso y a la cual podemos llamar para analizar un pedido desde el backoffice del pedido. Para el proceso dropshipping queremos que se haga petición a APIs cuando llegamos aquí por cambio de estado a Verificando stock, o cuando se pida expresamente desde el backoffice, pero no cuando se hace una modificación en los productos de un pedido en backoffice, de modo que tenemos un parámetro de la siguiente función que indicará que después de procesar los productos, si hay dropshipping, se haga el proceso de API o no.
+                $procesar_dropshipping = 1;
+                $this->checkOrderProductosSinStock($id_order, $procesar_dropshipping);  
+
+            } //if validate status and status=9
+
+        } 
+
+    }
+
     // Con este hook, miramos el nuevo estado del pedido y si es Sin Stock Pagado (Verificando Stock), comprobamos los productos para averiguar cual o cuales están en permitir pedido y no tienen stock.
     // 04/08/2020 desactivamos el email de estado Sin Stock Pagado y lo enviamos aquí si en el pedido no hay ningún producto de frikilería kids. En caso de haberlo, no se envía email - Eliminado a parit de enero 2022, pasamos a enviarlo con connectif
     // 02/03/2022 Integramos le proceso para pedidos dropshipping aquí, dado que la detección de productos vendidos sin stock es la misma y se compraten muchos procesos. Primero haremos la gestión como producto vendido sin stock y después se analizará si corresponde a producto dropshipping etc
@@ -306,8 +374,12 @@ class Productosvendidossinstock extends Module
         // 'newOrderStatus' => (object) OrderState,
         // 'id_order' => (int) Order ID
         // );
+    /*
     public function hookActionOrderStatusPostUpdate($params)
     {
+        $jsonData = json_encode($params);
+        $path = _PS_ROOT_DIR_."/proveedores/karactermania/pedidos/params_order.json";
+        file_put_contents($path, $jsonData);
         //vamos a comprobar cada cambio de estado, pero solo nos interesan los que van a Verificando stock, antiguo Sin Stock Pagado, ya que si entran en estado no pagado no queremos hacer todavía el pedido y si son pago aceptado es que tenemos stock y no hay que pedirlo
         if ($params) {
             $new_order_status = $params['newOrderStatus'];
@@ -323,6 +395,7 @@ class Productosvendidossinstock extends Module
 
         } // if $params
     }
+    */
 
     //función que procesa un pedido, definiendo si contiene productos sin stock, si estos son dropshipping, etc. Se utiliza desde el hook de cambio de estado si este es a pedido sin stock pagado o para verificar un pedido desde el back office, en la ficha de pedido cuando se modifique este, añadiendo, eliminando o modificando algún producto
     //el parámetro $id_employee tendrá contenido cuando se llama a la función desde el back office (override adminorderscontroller) al modificar los productos de un pedido, de modo que se puede almacenar el id en la tabla productosvendidossinstock. Lo enviamos a procesaVendidosSinStock() para allí, si hay cambios en productos, utilizarlo

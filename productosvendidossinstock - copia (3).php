@@ -31,8 +31,6 @@ if (!defined('_PS_VERSION_')) {
 require_once(dirname(__FILE__).'/classes/Disfrazzes.php');
 require_once(dirname(__FILE__).'/classes/Globomatik.php');
 require_once(dirname(__FILE__).'/classes/Dmi.php');
-require_once(dirname(__FILE__).'/classes/Karactermania.php');
-require_once(dirname(__FILE__).'/classes/HerramientasVentaSinStock.php');
 
 class Productosvendidossinstock extends Module
 {
@@ -597,7 +595,7 @@ class Productosvendidossinstock extends Module
 
         //05/06/2023 Si tenemos configurado el envío de pedidos a Karactermanía con FTP comprobamos si hay algún producto vendido sin stock suyo y procesamos
         if ($check_karactermania && Configuration::get('PEDIDOS_FTP_KARACTERMANIA')) {
-            Karactermania::gestionKaractermania($order->id);
+            $this->gestionKaractermania($order->id);
         }
 
         if (empty($info_dropshipping)) {
@@ -607,7 +605,442 @@ class Productosvendidossinstock extends Module
             return $info_dropshipping;
         }
 
-    }    
+    }
+
+    //función que dado un id_order busca sus productos de Karactermanía en lafrips_productos_vendidos_sin_stock y genera el archivo necesario en el servidor FTP 
+    //obtenemos de productos vendidos sin stock la info de la venta y la insertamos en lafrips_pedidos_karactermania si no existe de antemano. Si existe comprobamos cantidades y si son diferentes las pedimos (si ya fue pedido pedimos la diferencia si es superior) Después, si no está marcado como ya pedido, generamos el csv correspondiente al pedido. Finalmente comprobamos si en el pedido original hay más productos vendidos sin stock, marcamos estos como revisados y si no hay ninguno más pasamos el pedido a Esperando Productos.
+    //comprobamos cada producto para saber si tiene  categoría prepedido 121, almacenado en lafrips_productos_vendidos_sin_stock, si la tienen no se solicitan por ftp
+    public function gestionKaractermania($id_order) {
+        $sql_productos_vendidos_sin_stock = "SELECT * FROM lafrips_productos_vendidos_sin_stock WHERE id_order_detail_supplier = 53 AND id_order = $id_order";
+
+        $productos_karactermania = Db::getInstance()->ExecuteS($sql_productos_vendidos_sin_stock);
+
+        if(count($productos_karactermania) > 0){ 
+            foreach($productos_karactermania as $producto){
+                $id_product = $producto['id_product'];
+                $id_product_attribute = $producto['id_product_attribute'];
+                $product_name = $producto['product_name'];
+                $referencia_prestashop = $producto['product_reference'];
+                $referencia_karactermania = $producto['product_supplier_reference'];
+                $unidades = $producto['product_quantity'];
+                $prepedido = $producto['prepedido'];
+                $date_original = $producto['date_add'];
+
+                $ean = $this->getEan($id_product, $id_product_attribute) ? $this->getEan($id_product, $id_product_attribute) : "";
+
+                $sql_tabla_karactermania = "SELECT id_pedidos_karactermania, unidades, ftp 
+                FROM lafrips_pedidos_karactermania
+                WHERE id_order = $id_order
+                AND id_product = $id_product
+                AND id_product_attribute = $id_product_attribute";
+
+                if ($tabla_karactermania = Db::getInstance()->getRow($sql_tabla_karactermania)) {
+                    //el producto y pedido ya se encuentran, si además ftp = 1 es que ya se generó en el servidor, ignoramos la línea, si se quisiera pedir otra vez u otras cantidades para el mismo producto se hará a mano
+                    if ($tabla_karactermania['ftp']) {
+                        continue;
+                        // if (($unidades - $tabla_karactermania['unidades']) > 0) {
+                        //     $unidades = $unidades - $tabla_karactermania['unidades'];
+
+                        //     $sql_update_tabla_karactermania = "UPDATE lafrips_pedidos_karactermania
+                        //     SET
+                        //     ftp = 0,
+                        //     unidades = $unidades,
+                        //     comentario = CONCAT(comentario, ' | Linea existia: ftp 1 a 0, unidades ".$tabla_karactermania['unidades']." a $unidades - ', DATE_FORMAT(NOW(),'%d-%m-%Y %H:%i:%s')),
+                        //     date_upd = NOW()
+                        //     WHERE id_order = $id_order 
+                        //     AND id_product = $id_product
+                        //     AND id_product_attribute = $id_product_attribute";
+
+                        //     Db::getInstance()->execute($sql_update_tabla_karactermania);
+                            
+                        // } else {
+                        //     continue;
+                        // }
+                    } else {
+                        //no fue pedido por ftp, comparamos cantidad a pedir y hacemos update si es diferente. En caso de ser prepedido se modificará pero igualmente no se generará en FTP 
+                        if ($unidades != $tabla_karactermania['unidades']) {                           
+
+                            $sql_update_tabla_karactermania = "UPDATE lafrips_pedidos_karactermania
+                            SET                            
+                            unidades = $unidades,                            
+                            comentario = CONCAT(comentario, ' | Linea existia: ftp 0 a 0, unidades ".$tabla_karactermania['unidades']." a $unidades - ', DATE_FORMAT(NOW(),'%d-%m-%Y %H:%i:%s')),
+                            date_upd = NOW()
+                            WHERE id_order = $id_order 
+                            AND id_product = $id_product
+                            AND id_product_attribute = $id_product_attribute";
+
+                            Db::getInstance()->execute($sql_update_tabla_karactermania);
+                            
+                        } else {
+                            continue;
+                        }   
+                    } 
+                    
+                } else {
+                    //hacemos insert
+                    $sql_insert = "INSERT INTO lafrips_pedidos_karactermania
+                    (id_order, id_product, id_product_attribute, referencia_karactermania, unidades, prepedido, product_name, ean, referencia_prestashop, date_original, date_add)
+                    VALUES
+                    (
+                        $id_order, $id_product, $id_product_attribute, '$referencia_karactermania', $unidades, $prepedido, '$product_name', '$ean', '$referencia_prestashop', '$date_original', NOW()
+                    )";
+
+                    Db::getInstance()->execute($sql_insert);
+
+                }                
+            }
+
+            //ahora tenemos en lafrips_pedidos_karactermania los productos con ftp 0 y los ids correspondientes para generar el archivo. Si eran productos ya pedidos y con ftp=1 o prepedidos, se ignorarán en la sql de la función de crear ftp
+            if ($this->setKaractermaniaFTP($id_order)) {
+                return;
+            } else {
+                return;
+            }
+        }   
+
+        return;
+    }
+
+    public function setKaractermaniaFTP($id_order) {
+        $error_ftp = 0;
+        $mensaje = "";
+        $info_pedido = "";
+        $ids_pedidos_karactermania = array();
+
+        $sql_info_ftp = "SELECT id_pedidos_karactermania, id_product, id_product_attribute, product_name, referencia_prestashop, referencia_karactermania, unidades
+        FROM lafrips_pedidos_karactermania
+        WHERE ftp = 0
+        AND prepedido = 0
+        AND error = 0
+        AND id_order = $id_order";
+
+        if ($info_ftp = Db::getInstance()->executeS($sql_info_ftp)) {
+            //preparamos el archivo para subir al FTP
+            $delimiter = ";";            
+            $path = _PS_ROOT_DIR_."/proveedores/karactermania/pedidos/";
+            $filename = "PEDIDO_".date("ymd_His").".csv";
+
+            $id_cliente = "430080613";
+                
+            //creamos el puntero del csv, para escritura
+            //$f = fopen('php://memory', 'w');
+            $file = fopen($path.$filename,'w');
+
+            foreach($info_ftp AS $info) {
+                $linea_csv = array($id_cliente, $info['referencia_karactermania'], $info['unidades']);
+                fputcsv($file, $linea_csv, $delimiter);
+
+                $info_pedido .= $id_cliente.';'.$info['referencia_karactermania'].';'.$info['unidades'].'<br>';
+                $mensaje .= $id_cliente.';'.$info['referencia_karactermania'].';'.$info['unidades'].'<br>';
+
+                //hacemos update a lafrips_productos_vendidos_sin_stock para marcar como revisado y a lafrips_pedidos_karactermania para marcar ftp a 1
+                $sql_update_productos_vendidos_sin_stock = "UPDATE lafrips_productos_vendidos_sin_stock
+                SET                                                      
+                checked = 1,
+                date_checked = NOW(),
+                id_employee = 44, 
+                date_upd = NOW()  
+                WHERE id_order = $id_order
+                AND id_product = ".$info['id_product']."
+                AND id_product_attribute = ".$info['id_product_attribute'];
+
+                Db::getInstance()->execute($sql_update_productos_vendidos_sin_stock);
+
+                $sql_update_tabla_karactermania = "UPDATE lafrips_pedidos_karactermania
+                SET                            
+                ftp = 1,
+                date_upd = NOW()
+                WHERE id_pedidos_karactermania = ".$info['id_pedidos_karactermania'];
+
+                Db::getInstance()->execute($sql_update_tabla_karactermania);
+
+                //alamcenamos cada id de la tabla por si hay que revertir ftp = 1
+                $ids_pedidos_karactermania[] = $info['id_pedidos_karactermania'];
+            }
+
+            //cerramos el puntero / archivo csv
+            fclose($file);
+
+            //obtenemos credenciales para FTP de Karactermanía
+            $secrets_json = file_get_contents(dirname(__FILE__).'/secrets/ftp_karactermania.json');
+            
+            $secrets = json_decode($secrets_json, true);
+
+            //sacamos credenciales FTP
+            $ftp_server = $secrets['ftp_server']; 
+            $ftp_username = $secrets['ftp_username']; 
+            $ftp_password = $secrets['ftp_password']; 
+            // $id_cliente = $secrets['id_cliente']; 
+
+            //conectamos al servidor FTP
+            $ftp_connection = ftp_connect($ftp_server);
+            if (!$ftp_connection) {
+                $error_ftp = 1;
+                $mensaje .= "<br><br>Error conectando al servidor FTP - ".$ftp_server;                
+            } else {
+                //hacemos login en el servidor FTP
+                $ftp_login = ftp_login($ftp_connection, $ftp_username, $ftp_password);
+                if (!$ftp_login) {
+                    $error_ftp = 1;
+                    $mensaje .= "<br><br>Error haciendo login en servidor FTP";                      
+                } else {
+                    //creamos el archivo origen en el servidor de destino, en la carpeta por defecto a la que nos conectamos
+                    //ftp_put(conexion, nombre_archivo_destino, ruta_y_nombre_archivo_origen, transfer mode FTP_ASCII o FTP_BINARY)
+                    if (ftp_put($ftp_connection, $filename, $path.$filename, FTP_ASCII)) {
+                        //correcto, pero nos aseguramos de que exista el archivo en destino
+
+                    } else {
+                        $error_ftp = 1;
+                        $error = error_get_last();
+                        $mensaje .= "<br><br>Error subiendo archivo a servidor FTP - ".$error['message'];                         
+                    }
+                }
+            }
+            
+            $error_archivo = "";
+            $encontrado = 0;
+            if ($error_ftp) {
+                $error_archivo = 'ERROR - ARCHIVO NO SUBIDO A FTP - ';
+                $mensaje .= '<br><br>Información para generar a mano: <br><br>'.$filename.'<br><br>'.$info_pedido;
+            } else {
+                //comprobamos que el archivo exista en destino. Sacamos la lista de archivos de la carpeta destino con ftp_nlist
+                //el parámetro "." indica mirar archivos de la carpeta destino o raíz. Devuelve los archivos con ./ delante del nombre
+                $file_list = ftp_nlist($ftp_connection, ".");
+                
+                foreach ($file_list AS $key => $value) {                    
+                    if ($value == "./".$filename) {
+                        $encontrado = 1;
+                    }
+                }
+
+                if (!$encontrado) {
+                    $error_archivo = 'ERROR - ARCHIVO NO SUBIDO A FTP - ';
+                    $mensaje .= '<br><br>Archivo no encontrado en destino después de crearlo a FTP
+                    <br><br>Información para generar a mano: <br><br>'.$filename.'<br><br>'.$info_pedido;                    
+                }
+            }
+
+            //si hubo errores ahora actualizamos el error en las tablas
+            if ($error_ftp || !$encontrado) {
+                //marcamos ftp a 0 para cada línea del csv, cuyos ids de tabla pedidos_karactermania están en el array $ids_pedidos_karactermania 
+                foreach ($ids_pedidos_karactermania AS $id_pedidos_karactermania) {
+                    $sql_update_tabla_karactermania = "UPDATE lafrips_pedidos_karactermania
+                    SET                            
+                    ftp = 0,
+                    error = 1,
+                    comentario = CONCAT(comentario, ' | Error: CSV no generado en directorio FTP destino - ', DATE_FORMAT(NOW(),'%d-%m-%Y %H:%i:%s')),
+                    date_upd = NOW()
+                    WHERE id_pedidos_karactermania = $id_pedidos_karactermania";
+
+                    Db::getInstance()->execute($sql_update_tabla_karactermania);
+                } 
+                //quitamos revisado de lafrips_productos_vendidos_sin_stock
+                foreach($info_ftp AS $info) {    
+                    //hacemos update a lafrips_productos_vendidos_sin_stock para marcar como revisado 0
+                    $sql_update_productos_vendidos_sin_stock = "UPDATE lafrips_productos_vendidos_sin_stock
+                    SET                                                      
+                    checked = 0,
+                    date_checked = NOW(),
+                    id_employee = 44, 
+                    date_upd = NOW() 
+                    WHERE id_order = $id_order
+                    AND id_product = ".$info['id_product']."
+                    AND id_product_attribute = ".$info['id_product_attribute'];
+    
+                    Db::getInstance()->execute($sql_update_productos_vendidos_sin_stock);
+                }       
+            } else {
+                //si no ha habido errores metemos un mensaje CustomerMessage dentro del pedido sobre el pedido a Karactermanía y después comprobamos si el pedido contiene algún otro producto vendido sin stock que no esté revisado. Si lo tiene no hacemos nada más, si no lo tienecambiamos el estado a Esperando productos
+                //primero ponemos el mensaje al pedido
+                if (!$id_customer_thread = $this->setMensajePedido($id_order, $info_ftp)) {
+                    $error_archivo .= "WARNING - Error mensaje interno para pedido - ";
+                    $mensaje .= "<br><br>Error añadiendo mensaje interno de compra a pedido";
+                }
+
+                //ahora procesamos si hay que cambiar de estado - LO PONEMOS EN PROCESO PROGRAMADO PARA TODOS PROVEEDORES Y PEDIDOS
+                // if (!$this->checkCambioEsperandoProductos($id_order, $id_customer_thread)) {
+                //     $error_archivo .= "WARNING - Error cambiando estado pedido - ";
+                //     $mensaje .= "<br><br>Error cambiando estado de pedido a Esperando Productos";
+                // }
+            }
+
+            //cerramos conexión
+            ftp_close($ftp_connection);
+
+            //enviamos email de aviso con mensaje, dependiendo de si hay error
+            $info = [];                
+            $info['{firstname}'] = 'Sergio';
+            $info['{archivo_expediciones}'] = $error_archivo.'Pedido a Karactermanía '.date("Y-m-d H:i:s");
+            $info['{errores}'] = $mensaje;
+            // print_r($info);
+            // $info['{order_name}'] = $order->getUniqReference();
+            @Mail::Send(
+                1,
+                'aviso_error_expedicion_cerda', //plantilla
+                Mail::l($error_archivo.'Pedido realizado a Karactermanía '.date("Y-m-d H:i:s"), 1),
+                $info,
+                'sergio@lafrikileria.com',
+                'Sergio',
+                null,
+                null,
+                null,
+                null,
+                _PS_MAIL_DIR_,
+                true,
+                1
+            );
+
+        }
+
+        return;
+    }
+
+    //función que añade mensaje interno a pedido para los productos sin stock vendidos (por ahora Karactermanía)
+    //devuelve false si no se puede generar mensajes, o id de customer thread si es correcto, para posible cambio de estado
+    public function setMensajePedido($id_order, $info_productos) {
+        //por cada producto del pedido generamos un mensaje interno. Primero obtenemos si existe, o generamos, un customer thread, para lo que necesitamos el id_order y el customer email:
+        $error = 0;
+        $order = new Order($id_order);        
+        $customer = new Customer($order->id_customer);
+        //comprobamos si hay customer thread para el pedido, si existe sacamos su id
+        $id_customer_thread = CustomerThread::getIdCustomerThreadByEmailAndIdOrder($customer->email, $id_order);            
+
+        if ($id_customer_thread) {
+            //si ya existiera lo instanciamos para tener los datos para el mensaje y el envío de email
+            $ct = new CustomerThread($id_customer_thread);
+        } else {
+            //si no existe lo creamos
+            $ct = new CustomerThread();
+            $ct->id_shop = 1; // (int)$this->context->shop->id;
+            $ct->id_lang = 1; // (int)$this->context->language->id;
+            $ct->id_contact = 0; 
+            $ct->id_customer = $order->id_customer;
+            $ct->id_order = $id_order;
+            //$ct->id_product = 0;
+            $ct->status = 'open';
+            $ct->email = $customer->email;
+            $ct->token = Tools::passwdGen(12);  // hay que generar un token para el hilo
+            $ct->add();
+        }  
+
+        //si hay id de customer_thread continuamos
+        if ($ct->id){
+            //por cada producto metemos un mensaje
+            $fecha = date("d-m-Y H:i:s");
+            foreach ($info_productos AS $producto) {
+                //un mensaje interno para que aparezca la fecha de revisado del producto sin stock y el empleado (automatizador aquí) en el back de pedidos
+                $mensaje_pedido_sin_stock_producto_karactermania = 'Producto Karactermanía vendido sin stock: 
+                Nombre: '.$producto['product_name'].'
+                Ref. Prestashop: '.trim($producto['referencia_prestashop']).' 
+                Ref. Proveedor: '.trim($producto['referencia_karactermania']).'
+                revisado automáticamente al entrar a Verificando Stock el '.$fecha;
+
+                $cm_interno = new CustomerMessage();
+                $cm_interno->id_customer_thread = $ct->id;
+                $cm_interno->id_employee = 44; 
+                $cm_interno->message = $mensaje_pedido_sin_stock_producto_karactermania;
+                $cm_interno->private = 1;                
+                $cm_interno->add();
+            }            
+        } else {
+            return false;
+        }     
+
+        return $ct->id;
+    }
+
+    //función que comprueba si el pedido tiene productos vendidos sin stock sin revisar y dependiendo del caso cambia el estado de pedido a esperando productos, añadiendo mensaje al pedido
+    public function checkCambioEsperandoProductos($id_order, $id_customer_thread) {
+        //comprobamos si después de revisar los productos aún quedan más productos vendidos sin stock en ese pedido
+        $sql_otros_productos_pedido = "SELECT id_product
+        FROM lafrips_productos_vendidos_sin_stock 
+        WHERE checked = 0
+        AND id_order = $id_order";
+
+        //si no encuentra más productos en el pedido, comprobamos su estado actual, y si es verificando stock/sin stock pagado lo pasamos a Esperando productos, si es cualquier otro estado, no hacemos nada
+        if (!Db::getInstance()->ExecuteS($sql_otros_productos_pedido)) { 
+            $order = new Order($id_order);   
+            
+            //si el estado actual es verificando stock/sin stock pagado lo cambiamos
+            if ($order->current_state == Configuration::get(PS_OS_OUTOFSTOCK_PAID)){
+                //cambiamos estado y metemos mensaje a pedido, actualizamos el estado en lafrips_productos_vendidos_sin_stock
+                //sacamos id_status de Esperando productos
+                $sql_id_esperando_productos = "SELECT ost.id_order_state
+                FROM lafrips_order_state ost
+                JOIN lafrips_order_state_lang osl ON osl.id_order_state = ost.id_order_state AND osl.id_lang = 1
+                WHERE osl.name = 'Esperando productos'
+                AND ost.deleted = 0";
+                $id_esperando_productos = Db::getInstance()->getValue($sql_id_esperando_productos);                
+
+                //se genera un objeto $history para crear los movimientos, asignandole el id del pedido sobre el que trabajamos            
+                //cambiamos estado de orden a Esperando productos, ponemos id_employee 44 que es Automatizador, para log
+                $history = new OrderHistory();
+                $history->id_order = $id_order;
+                $history->id_employee = 44;
+                //comprobamos si ya tiene el invoice, payment etc, porque puede duplicar el método de pago. hasInvoice() devuelve true o false, y se pone como tercer argumento de changeIdOrderState(). Primero tenemos que instanciar el pedido
+                // $order = new Order($producto['id_order']);
+				$use_existing_payment = !$order->hasInvoice();
+                $history->changeIdOrderState($id_esperando_productos, $id_order, $use_existing_payment); 
+                $history->add(true);
+                if (!$history->save()) {
+                    return false;
+                }
+
+                //cambiamos estado en lafrips_productos_vendidos_sin_stock
+                $sql_update_productos_vendidos_sin_stock = 'UPDATE lafrips_productos_vendidos_sin_stock
+                            SET                                                      
+                            id_order_status = '.$id_esperando_productos.'
+                            WHERE id_order = '.$id_order;
+
+                Db::getInstance()->execute($sql_update_productos_vendidos_sin_stock);
+
+                //ya se ha cambiado el estado, guardamos en frik_pedidos_cambiados el cambio de estado 
+				$order_carrier = new OrderCarrier($order->getIdOrderCarrier());
+				$id_carrier_orders = (int)$order_carrier->id_carrier; 
+
+				$insert_frik_pedidos_cambiados = "INSERT INTO frik_pedidos_cambiados 
+				(id_order, estado_inicial, estado_final, transporte_inicial, transporte_final, proceso, date_add) 
+				VALUES ($id_order ,
+				".$order->current_state." ,
+				$id_esperando_productos ,
+				$id_carrier_orders ,
+                $id_carrier_orders ,
+                'A Esperando Productos - Pedido Karactermanía - Automático',
+				NOW())";
+
+				Db::getInstance()->Execute($insert_frik_pedidos_cambiados);
+
+                //metemos mensaje privado al pedido
+                //comprobamos si vino valor en $id_customer_thread, si es false no metemos mensaje al pedido, si no añadimos mensaje del cambio de estado
+                if ($id_customer_thread) {
+                    $fecha = date("d-m-Y H:i:s");
+                    $mensaje_pedido_sin_stock_estado = 'Pedido Karactermanía cambiado a Esperando Productos                     
+                    revisado automáticamente al entrar a Verificando Stock el '.$fecha;
+
+                    $cm_interno_cambio_estado = new CustomerMessage();
+                    $cm_interno_cambio_estado->id_customer_thread = $id_customer_thread;
+                    $cm_interno_cambio_estado->id_employee = 44; 
+                    $cm_interno_cambio_estado->message = $mensaje_pedido_sin_stock_estado;
+                    $cm_interno_cambio_estado->private = 1;                    
+                    $cm_interno_cambio_estado->add();
+                }
+            }
+
+        }
+
+        return true;
+    }
+
+    public function getEan($id_product, $id_product_attribute) {
+        $sql_ean = "SELECT IFNULL(pat.ean13, pro.ean13) AS ean 
+        FROM lafrips_product pro
+        JOIN lafrips_stock_available ava ON ava.id_product = pro.id_product
+        LEFT JOIN lafrips_product_attribute pat ON pat.id_product = ava.id_product AND pat.id_product_attribute = ava.id_product_attribute
+        WHERE ava.id_product = $id_product
+        AND ava.id_product_attribute = $id_product_attribute";
+
+        return Db::getInstance()->getValue($sql_ean);
+    }
 
     //comprobamos si un pedido - producto ya existe en la tabla productos vendidos sin stock
     public function checkTablaVendidosSinStock($id_order, $id_product, $id_product_attribute) {

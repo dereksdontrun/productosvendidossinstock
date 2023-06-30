@@ -26,7 +26,7 @@
   En esta plantilla mostraremos el producto seleccionado con la lista de proveedores y precio que tiene el producto configurados en Prestashop, y además, si está disponible en la tabla frik_import_catalogos lo mostraremos, con precio y disponibilidad.
   Mostraremos la cantidad de unidades del mismo producto que se encuentran ahora mismo vendidas como producto sin stock (checked = 0 en lafrips_productos_vendidos_sin_stock)
   Tendrá un botón para marcar el producto como revisado, que deberá ejecutar sus funciones desde postProcess() en el controlador AdminProductosVendidosSinStock.
-  También? un botón que de la posibilidad de pasar a Revisado todos los productos iguales a este que tengan checked = 0, repasando cada uno de sus pedidos y cambiando o no su estado a Esperando Productos en función de si hay o no algún otro producto vendido sin stock en el mismo pedido
+  También? un botón que de la posibilidad de pasar a Revisado todos los productos iguales a este que tengan checked = 0, repasando cada uno de sus pedidos y cambiando o no su estado a Completando Pedido en función de si hay o no algún otro producto vendido sin stock en el mismo pedido
 *}
   
   <div class="panel clearfix">
@@ -155,7 +155,7 @@
 
             </div>
             <div class="col-lg-4 col-md-4 col-sm-4 col-xs-4 stocks text-center">
-              <label for="submitRevisado_{$id}">Pulsando este botón marcarás como revisada esta unidad de producto y si el pedido no contiene más productos vendidos sin stock sin revisar y se encuentra en estado Pedido Sin Stock Pagado pasará a estado Esperando Productos.</label>
+              <label for="submitRevisado_{$id}">Pulsando este botón marcarás como revisada esta unidad de producto y si el pedido no contiene más productos vendidos sin stock sin revisar y se encuentra en estado Pedido Sin Stock Pagado pasará a estado Completando Pedido.</label>
               <button type="submit" id="submitRevisado_{$id}" class="btn btn-success" name="submitRevisado" value="{$id}" {if $checked} disabled{/if}>
                 <i class="icon-check"></i> Marcar Revisado
               </button>
@@ -164,7 +164,7 @@
 
             </div>
             <div class="col-lg-4 col-md-4 col-sm-4 col-xs-4 stocks text-center">
-              <label for="submitTodosRevisados_{$id}">Pulsando este botón marcarás como revisados todos los productos como este, vendidos sin stock y sin revisar, y si sus pedidos se encuentran en estado Pedido Sin Stock Pagado, y no contienen más productos sin revisar, pasarán a estado Esperando Productos.</label>
+              <label for="submitTodosRevisados_{$id}">Pulsando este botón marcarás como revisados todos los productos como este, vendidos sin stock y sin revisar, y si sus pedidos se encuentran en estado Pedido Sin Stock Pagado, y no contienen más productos sin revisar, pasarán a estado Completando Pedido.</label>
               <button type="submit" id="submitTodosRevisados_{$id}" class="btn btn-success" name="submitTodosRevisados" value="{$id}" {if ($unidades_vendidas_sin_stock - $product_quantity) < 1} disabled{/if}>
                 <i class="icon-check"></i> Marcar Todos como Revisado                
               </button>
@@ -183,7 +183,7 @@
             </div>        
             <div class="row">
               <div class="col-lg-11 col-md-11 col-sm-11 col-xs-11 stocks text-center">
-                <label for="submitTodosRevisados_{$id}">Pulsando este botón marcarás como revisados todos los productos como este, vendidos sin stock y sin revisar, y si sus pedidos se encuentran en estado Pedido Sin Stock Pagado, y no contienen más productos sin revisar, pasarán a estado Esperando Productos.</label>
+                <label for="submitTodosRevisados_{$id}">Pulsando este botón marcarás como revisados todos los productos como este, vendidos sin stock y sin revisar, y si sus pedidos se encuentran en estado Pedido Sin Stock Pagado, y no contienen más productos sin revisar, pasarán a estado Completando Pedido.</label>
                 <button type="submit" id="submitTodosRevisados_{$id}" class="btn btn-success" name="submitTodosRevisados" value="{$id}" {if $unidades_vendidas_sin_stock <= 1} disabled{/if}>
                   <i class="icon-check"></i> Marcar Todos como Revisado                
                 </button>
