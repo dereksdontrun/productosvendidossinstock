@@ -63,12 +63,9 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
                                 WHEN con.consumo IS NULL THEN 1
                             ELSE IF(con.abc = "C", 1, 0)
                             END AS badge_success';
-        
-        // MOD: 26/07/2023 Añadimos el stock disponible a la vista
-        $this->_select .= ' , ava.quantity AS stock_available';
 
         // MOD: Sergio - 12/11/2021 En el JOIN con lafrips_product pongo AND eliminado = 0 para evitar que muestre productos eliminados
-        // LEFT JOIN lafrips_product pro ON pro.id_product = a.id_product        
+        // LEFT JOIN lafrips_product pro ON pro.id_product = a.id_product
         $this->_join = '        
         LEFT JOIN lafrips_orders ord ON a.id_order = ord.id_order 
         LEFT JOIN lafrips_order_state ors ON ors.id_order_state = ord.current_state
@@ -80,9 +77,6 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
         // MOD: Sergio - 30/04/2021 Sacar clasificación ABC del producto. Hacemos LEFT JOIN con lafrips_consumos. Si el producto no está, es C, si su antiguedad es menor de 61 días, es B, si está en la tabla y no es novedad, es lo que ponga en la tabla. 
         // 10/06/2021 ya no se calcula abc ni si es novedad, lo india todo la tabla     
         $this->_join .= ' LEFT JOIN lafrips_consumos con ON con.id_product = a.id_product AND con.id_product_attribute = a.id_product_attribute ';
-
-        // MOD: 26/07/2023 Añadimos el stock disponible a la vista, haciendo join a stock_available
-        $this->_join .= ' LEFT JOIN lafrips_stock_available ava ON ava.id_product = a.id_product AND ava.id_product_attribute = a.id_product_attribute ';
 
         $this->_orderBy = 'id_order';
         $this->_orderWay = 'DESC';
@@ -168,15 +162,6 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
                 'filter_key' => 'a!product_reference',
                 'filter_type' => 'text',
                 'order_key' => 'a!product_reference'
-            ), 
-            // MOD: 26/07/2023 Añadimos stock disponible 
-            'stock_available' => array(
-                'title' => $this->l('Disponible'),
-                'align' => 'text-center',
-                'class' => 'fixed-width-xs',
-                'type' => 'text',
-                'filter_key' => 'ava!quantity',
-                'filter_type' => 'int',
             ),    
             'product_quantity' => array(
                 'title' => $this->l('Cantidad'),
