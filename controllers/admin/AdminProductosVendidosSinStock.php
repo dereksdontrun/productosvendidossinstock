@@ -434,7 +434,15 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
 
             } elseif ($id_esperando_productos) {
                 //todos los productos vendidos sin stock en el pedido están revisados. comprobamos si el estado actual de pedido es Sin Stock Pagado, o si ya está en Completando Pedido. Si está en Sin stock pagado lo pasamos a Completando Pedido, con mensaje de success y mensaje privado en pedido. Si el pedido está ya en Completando Pedido, mostramos warning diciéndolo. Si no está en ninguno de los dos estados, no lo cambiamos, pero mostramos aviso.
+                //22/08/2023 Ya no vamos a cambiar el estado de pedido si se revisa y no hay más productos para revisar ya que en el mismo proceso se harán otras cosas como cambiar el transporte a GLS24 según el caso, etc y lo centralizamos todo en la tarea CambiaEstadoPedido.php, de modo que si no hay más productos a revisar se muestra un mensaje y nada más
                 if ($current_state == Configuration::get(PS_OS_OUTOFSTOCK_PAID)){
+
+                    $this->confirmations[] = $this->l('Producto en pedido '.$id_order.' marcado como Revisado. ');
+                    $this->displayWarning('El pedido se revisará para cambiar a Completando Pedido en el proceso horario. Todos sus productos vendidos sin stock están revisados. ');
+
+                    return;
+
+                    /*
                     //cambiamos estado, metemos mensaje a pedido y mostramos mensaje success ¿?. actualizamos el estado en lafrips_productos_vendidos_sin_stock
                     //se genera un objeto $history para crear los movimientos, asignandole el id del pedido sobre el que trabajamos            
                     //cambiamos estado de orden a Completando Pedido, ponemos id_employee 44 que es Automatizador, para log
@@ -476,6 +484,7 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
                     $this->confirmations[] = $this->l('Pedido '.$id_order.' pasado a Completando Pedido, con todos sus productos vendidos sin stock revisados. ');
                     //$this->displayWarning('Pedido pasado a Completando Pedido, con todos sus productos vendidos sin stock están revisados');
                     return;
+                    */
                     
                 } elseif ($current_state == $id_esperando_productos){
                     //solo mostramos warning de que ya estaba en ese estado (alguien debe haberlo cambiado manualmente), actualizamos el estado en lafrips_productos_vendidos_sin_stock
@@ -663,7 +672,15 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
 
                 } elseif ($id_esperando_productos) {
                     //todos los productos vendidos sin stock en el pedido están revisados. comprobamos si el estado actual de pedido es Sin Stock Pagado, o si ya está en Completando Pedido. Si está en Sin stock pagado lo pasamos a Completando Pedido, con mensaje de success y mensaje privado en pedido. Si el pedido está ya en Completando Pedido, mostramos warning diciéndolo. Si no está en ninguno de los dos estados, no lo cambiamos, pero mostramos aviso.
+                    //22/08/2023 Ya no vamos a cambiar el estado de pedido si se revisa y no hay más productos para revisar ya que en el mismo proceso se harán otras cosas como cambiar el transporte a GLS24 según el caso, etc y lo centralizamos todo en la tarea CambiaEstadoPedido.php, de modo que si no hay más productos a revisar se muestra un mensaje y nada más
                     if ($current_state == Configuration::get(PS_OS_OUTOFSTOCK_PAID)){
+                        
+                        $this->confirmations[] = $this->l('Producto en pedido '.$id_order.' marcado como Revisado. ');
+                        $this->displayWarning('El pedido '.$id_order.' se revisará para cambiar a Completando Pedido en el proceso horario. Todos sus productos vendidos sin stock están revisados. ');
+
+                        continue;
+
+                        /*
                         //cambiamos estado, metemos mensaje a pedido y mostramos mensaje success. Actualizamos el estado en lafrips_productos_vendidos_sin_stock
                         //se genera un objeto $history para crear los movimientos, asignándole el id del pedido sobre el que trabajamos            
                         //cambiamos estado de orden a Completando Pedido, ponemos id_employee 44 que es Automatizador, para log
@@ -703,6 +720,7 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
                         $this->confirmations[] = $this->l('Pedido '.$id_order.' pasado a Completando Pedido, con todos sus productos vendidos sin stock revisados. ');
                         //$this->displayWarning('Pedido pasado a Completando Pedido, con todos sus productos vendidos sin stock están revisados');
                         continue;
+                        */
                         
                     } elseif ($current_state == $id_esperando_productos){
                         //solo mostramos warning de que ya estaba en ese estado (alguien debe haberlo cambiado manualmente), actualizamos el estado en lafrips_productos_vendidos_sin_stock
