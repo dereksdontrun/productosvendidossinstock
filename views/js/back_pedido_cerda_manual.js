@@ -139,7 +139,9 @@ $(function(){
         //cada input de referencia_proveedor tiene clase "referencia_proveedor", los chequeamos uno a uno
         $('.referencia_proveedor').each(function() {
             //el regexp indica que debe empezar por 10 digitos del 0 al 9, y se puede o no dar lo que hay entre parentesis (..)?, que sería, si se da, un guión bajo, seguido de 1 a 9 caracteres, números, letras  y guión
-            if (this.value == '' || ((this.value != '') && !(/^[0-9]{10}(_[0-9a-zA-Z\-]{1,9})?$/.test(this.value)))){ 
+            //23/08/2023 arreglo regex de referencia para que admita caracter / 
+            // (this.value == '' || ((this.value != '') && !(/^[0-9]{10}(_[0-9a-zA-Z\-]{1,9})?$/.test(this.value))))
+            if (this.value == '' || ((this.value != '') && !(/^[0-9]{10}(_[0-9a-zA-Z\/\-]{1,9})?$/.test(this.value)))){ 
                 error = 1;
                 error_referencia = 1;
             }

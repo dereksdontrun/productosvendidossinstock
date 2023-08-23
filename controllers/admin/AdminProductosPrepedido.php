@@ -313,9 +313,11 @@ class AdminProductosPrepedidoController extends ModuleAdminController {
         }        
 
         $response = true;
-
+        
         $producto = new Product($id_product);
-        $producto->available_later = [1 => $mensaje];  
+        //23/08/2023 Para que no se quede un mensaje diferente en Portugal por ejemplo, vamos a meter el mismo mensaje personalizado a todos los idiomas, no solo español. Usamos la función generaIdiomas() que uso al crear productos
+        // $producto->available_later = [1 => $mensaje];  
+        $producto->available_later = $this->generaIdiomas($mensaje);
         
         if (!$producto->save()) {
             //no se guarda correctamente, mostramos mensaje
@@ -814,7 +816,36 @@ class AdminProductosPrepedidoController extends ModuleAdminController {
         }
     }
 
-   
+    //23/08/2023 Función para generar array de lenguajes de modo que metemos le mismo mensaje de available_later a todos los idiomas y no queda por ejemplo en español "Llegará en octubre" y luego en Portugués Disponible 3 a 6 días.
+    //función que recibe uno a tres parámetros, el nombre o lo que sea en español y si hay en inglés y portugués, para generar el array de lenguaje para crear el producto en función de los idiomas en Prestashop.
+    public function generaIdiomas($spanish, $english = '', $portuguese = '') {
+        if (!$spanish) {
+            return false;
+        }
+
+        if (!$english) {
+            $english = $spanish;
+        }
+
+        if (!$portuguese) {
+            $portuguese = $spanish;
+        }
+
+        $idiomas = Language::getLanguages();
+
+        $todos = array();
+        foreach ($idiomas as $idioma) {
+            if ($idioma['iso_code'] == 'es') {
+                $todos[$idioma['id_lang']] = $spanish;
+            } else if ($idioma['iso_code'] == 'pt') {
+                $todos[$idioma['id_lang']] = $portuguese;
+            } else {
+                $todos[$idioma['id_lang']] = $english;
+            }
+        }
+
+        return $todos;
+    }   
 
     public function postProcess() {
 
