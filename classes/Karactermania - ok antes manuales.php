@@ -29,7 +29,7 @@
 class Karactermania
 {
     //función que dado un id_order busca sus productos de Karactermanía en lafrips_productos_vendidos_sin_stock y genera el archivo necesario en el servidor FTP 
-    //obtenemos de productos vendidos sin stock la info de la venta y la insertamos en lafrips_pedidos_karactermania si no existe de antemano. Si existe comprobamos cantidades y si son diferentes las pedimos (si ya fue pedido pedimos la diferencia si es superior) Después, si no está marcado como ya pedido, generamos el csv correspondiente al pedido. Finalmente comprobamos si en el pedido original hay más productos vendidos sin stock, marcamos estos como revisados y si no hay ninguno más pasamos el pedido a Esperando Productos. ESTO SE HARä EN PROCESO HORARIO PARA TODOS LOS PROVEEDORES
+    //obtenemos de productos vendidos sin stock la info de la venta y la insertamos en lafrips_pedidos_karactermania si no existe de antemano. Si existe comprobamos cantidades y si son diferentes las pedimos (si ya fue pedido pedimos la diferencia si es superior) Después, si no está marcado como ya pedido, generamos el csv correspondiente al pedido. Finalmente comprobamos si en el pedido original hay más productos vendidos sin stock, marcamos estos como revisados y si no hay ninguno más pasamos el pedido a Completando Pedido. ESTO SE HARä EN PROCESO HORARIO PARA TODOS LOS PROVEEDORES
     //comprobamos cada producto para saber si tiene  categoría prepedido 121, almacenado en lafrips_productos_vendidos_sin_stock, si la tienen no se solicitan por ftp
     public static function gestionKaractermania($id_order) {
         $sql_productos_vendidos_sin_stock = "SELECT * FROM lafrips_productos_vendidos_sin_stock WHERE id_order_detail_supplier = 53 AND id_order = $id_order";
@@ -208,6 +208,7 @@ class Karactermania
                 } else {
                     //creamos el archivo origen en el servidor de destino, en la carpeta por defecto a la que nos conectamos
                     //ftp_put(conexion, nombre_archivo_destino, ruta_y_nombre_archivo_origen, transfer mode FTP_ASCII o FTP_BINARY)
+                    //FTP_ASCII para texto, FTP_BINARY otros archivos, excel por ejemplo
                     if (ftp_put($ftp_connection, $filename, $path.$filename, FTP_ASCII)) {
                         //correcto, pero nos aseguramos de que exista el archivo en destino
 
@@ -272,7 +273,7 @@ class Karactermania
                     Db::getInstance()->execute($sql_update_productos_vendidos_sin_stock);
                 }       
             } else {
-                //si no ha habido errores metemos un mensaje CustomerMessage dentro del pedido sobre el pedido a Karactermanía y después comprobamos si el pedido contiene algún otro producto vendido sin stock que no esté revisado. Si lo tiene no hacemos nada más, si no lo tienecambiamos el estado a Esperando productos
+                //si no ha habido errores metemos un mensaje CustomerMessage dentro del pedido sobre el pedido a Karactermanía y después comprobamos si el pedido contiene algún otro producto vendido sin stock que no esté revisado. Si lo tiene no hacemos nada más, si no lo tienecambiamos el estado a Completando Pedido
                 //primero ponemos el mensaje al pedido
                 if (!$id_customer_thread = HerramientasVentaSinStock::setMensajePedido($id_order, $info_ftp)) {
                     $error_archivo .= "WARNING - Error mensaje interno para pedido - ";
@@ -280,10 +281,10 @@ class Karactermania
                 }
 
                 //ahora procesamos si hay que cambiar de estado - LO PONEMOS EN PROCESO PROGRAMADO PARA TODOS PROVEEDORES Y PEDIDOS
-                if (!HerramientasVentaSinStock::checkCambioEsperandoProductos($id_order, $id_customer_thread)) {
-                    $error_archivo .= "WARNING - Error cambiando estado pedido - ";
-                    $mensaje .= "<br><br>Error cambiando estado de pedido a Esperando Productos";
-                }
+                // if (!HerramientasVentaSinStock::checkCambioEsperandoProductos($id_order, $id_customer_thread)) {
+                //     $error_archivo .= "WARNING - Error cambiando estado pedido - ";
+                //     $mensaje .= "<br><br>Error cambiando estado de pedido a Esperando Productos";
+                // }
             }
 
             //cerramos conexión

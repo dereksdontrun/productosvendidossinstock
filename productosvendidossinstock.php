@@ -56,8 +56,11 @@ class Productosvendidossinstock extends Module
         //colocamos el link al módulo en la pestaña lateral de existencias        
         $this->admin_tab[] = array('classname' => 'AdminProductosVendidosSinStock', 'parent' => 'AdminStock', 'displayname' => 'Productos vendidos sin Stock');
 
-        //10/11/2020 tab para ir al formulario para crear pedidos manuales para Cerdá
-        $this->admin_tab[] = array('classname' => 'AdminPedidosManualesCerda', 'parent' => 'AdminStock', 'displayname' => 'Pedido Manual Cerdá');
+        //10/11/2020 tab para ir al formulario para crear pedidos manuales para Cerdá - sustituido por PedidosManualesProveedores 30/08/2023
+        // $this->admin_tab[] = array('classname' => 'AdminPedidosManualesCerda', 'parent' => 'AdminStock', 'displayname' => 'Pedido Manual Cerdá');
+
+        //30/08/2023 tab para ir al formulario para crear pedidos manuales para proveedores configurados para ello (Cerdá, Karactermanía...)
+        $this->admin_tab[] = array('classname' => 'AdminPedidosManualesProveedor', 'parent' => 'AdminStock', 'displayname' => 'Pedido Manual Proveedor');
 
         //13/01/2021 tab para mostrar los productos PREPEDIDO
         $this->admin_tab[] = array('classname' => 'AdminProductosPrepedido', 'parent' => 'AdminStock', 'displayname' => 'Prepedidos y En espera');
@@ -996,17 +999,17 @@ class Productosvendidossinstock extends Module
             $id_order = $info_address[0]['id_order'];
             $id_customer = $info_address[0]['id_customer'];
             $id_address_delivery = $info_address[0]['id_address_delivery'];
-            $firstname = trim($info_address[0]['firstname']);
-            $lastname = trim($info_address[0]['lastname']);
-            $company = trim($info_address[0]['company']);
+            $firstname = pSQL(trim($info_address[0]['firstname']));
+            $lastname = pSQL(trim($info_address[0]['lastname']));
+            $company = pSQL(trim($info_address[0]['company']));
             $email = $info_address[0]['email'];
             $phone = trim($info_address[0]['phone']);
-            $address1 = trim($info_address[0]['address1']);
+            $address1 = pSQL(trim($info_address[0]['address1']));
             $postcode = $info_address[0]['postcode'];
-            $city = $info_address[0]['city'];
+            $city = pSQL($info_address[0]['city']);
             $provincia = $info_address[0]['provincia'];
             $country = $info_address[0]['country'];
-            $other = trim($info_address[0]['other']);
+            $other = pSQL(trim($info_address[0]['other']));
             $dni = trim($info_address[0]['dni']);
         }
 
