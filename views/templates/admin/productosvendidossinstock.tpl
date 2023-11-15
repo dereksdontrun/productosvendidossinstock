@@ -55,12 +55,40 @@
           {/if}          
           <hr> 
           <h4>Proveedor por defecto</h4>
-          <b>{$default_supplier}</b> <br>  
+          <b>{$supplier_name}</b> <br>  
           REF: {$product_supplier_reference}<br>
           Coste: {$wholesale_price|string_format:"%.2f"} €<br>
           <hr>
           <h4>Stock disponible de producto</h4>
           {$stock_disponible}<br>
+          {* Si hay más de un proveedor para el producto mosraremos un select para dar la opción de cambiar su proveedor por defecto. Traemos aquí la apertura del form 
+          Pero si el producto ya está en un pedido de materiales no daremos esa opción sino que mostraremos referencia fecha y creador del pedido *}
+          <form action="{$url_base}index.php?controller=AdminProductosVendidosSinStock&token={$token}" method="post">
+          {* Si la línea es de antes de meter la creación de pedidos de materiales en este módulo, mostramos un mensaje de que no es procesable, en todo caso  es para pedidos viejos, pero mostramos un mensaje *}
+          {if $id_supply_order && $id_supply_order != 9999999}
+            <hr>
+            <h4>ATENCIÓN - Producto en Pedido de Materiales</h4>
+            Pedido: {$id_supply_order} - {$supply_order_reference}<br>
+            Añadido por {$employee_supply_order_name} en {$date_supply_order}       
+          {elseif $id_supply_order == 9999999}  
+          <hr>
+            <h4>Este pedido es anterior a la gestión de Pedidos de materiales desde este módulo o corresponde a un proveedor "automatizado"</h4>  
+          {elseif $info_proveedores_producto|@count gt 1}
+            <hr>
+            <h4>Cambiar proveedor para solicitar</h4>
+            <label for="otros_proveedores">Escoge nuevo proveedor:</label>
+            <select name="otros_proveedores" id="otros_proveedores">
+              {foreach $info_proveedores_producto as $proveedor}
+                {if $proveedor['id_supplier'] != $id_supplier}
+                  <option value="{$proveedor['id_supplier']}">{$proveedor['name']}</option>
+                {/if}
+              {/foreach}               
+            </select>
+            <br>
+            <button type="submit" id="submitCambiaProveedor_{$id}" class="btn btn-success" name="submitCambiaProveedor" value="{$id}">
+              <i class="icon-check"></i> Cambiar
+            </button>
+          {/if}
         </div>
 
         {* Si hay más de un proveedor para el producto lo mostramos *}
@@ -68,7 +96,7 @@
         <div class="panel col-lg-3 col-md-3 col-sm-3 col-xs-4">            
           <h3>Otros proveedores asignados</h3>          
           {foreach $info_proveedores_producto as $proveedor}
-            {if $proveedor['id_supplier'] != $id_default_supplier}
+            {if $proveedor['id_supplier'] != $id_supplier}
               <b>{$proveedor['name']}</b><br>
               REF: {$proveedor['product_supplier_reference']}<br>
               Precio: {$proveedor['product_supplier_price_te']|string_format:"%.2f"} €<br>
@@ -85,7 +113,7 @@
             <h3>Proveedores disponibles en Catálogos</h3>
             <br>
             {foreach $proveedores_import_catalogos as $proveedor_import_catalogos}
-              {* {if $proveedor['id_supplier'] != $id_default_supplier} *}
+              {* {if $proveedor['id_supplier'] != $id_supplier} *}
                 <b>{$proveedor_import_catalogos['nombre_proveedor']}</b><br>
                 REF: {$proveedor_import_catalogos['referencia_proveedor']}<br>
                 Precio: {$proveedor_import_catalogos['precio']|string_format:"%.2f"} €<br>
@@ -103,7 +131,7 @@
   <div class="panel clearfix">
     {* <div class="container">  *}
       <div class="row">
-      <form action="{$url_base}index.php?controller=AdminProductosVendidosSinStock&token={$token}" method="post">
+      {* 09/11/2023 movemos arriba para que coja el botón de cambiar proveedor si se muestra <form action="{$url_base}index.php?controller=AdminProductosVendidosSinStock&token={$token}" method="post"> *}
         <div class="col-lg-6 col-md-6 col-sm-6 col-xs-6 stocks text-center">
           <div class="row">
             <div class="col-lg-8 col-md-8 col-sm-8 col-xs-8 stocks text-center">            

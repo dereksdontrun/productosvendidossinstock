@@ -38,9 +38,10 @@
 
 //cambiamos el color de la línea de la tabla que tenga en su sexto td un texto conteniendo KID (referencia)
 //04/12/2020 también para los que empiezan por PET
-$(document).ready(function(){    
-    //aparentemente no puedo cambiar el color de tr sino de los hijos de tr, así que encuentro el sexto td que tiene KID en el texto, busco el tr más cercano, y a sus hijos les cambio el color
-    $('.table td:nth-child(6):contains(KID)').closest('tr').children('td, th').css("background-color", "#ffc994");
-    $('.table td:nth-child(6):contains(PET)').closest('tr').children('td, th').css("background-color", "#ffc994");
-    // console.log('estoy en js dedeess');
-});
+//07/11/2023 Lo quitamos ya que además de haber añadido campos a la tabla y ya no ser el sexto, muchos productos que no son de Cerdá tienen KID en la referencia y otros de Cerdá adult no lo tienen, y también están los de Karactermanía que se piden automaticamente
+// $(document).ready(function(){    
+//     //aparentemente no puedo cambiar el color de tr sino de los hijos de tr, así que encuentro el sexto td que tiene KID en el texto, busco el tr más cercano, y a sus hijos les cambio el color
+//     $('.table td:nth-child(7):contains(KID)').closest('tr').children('td, th').css("background-color", "#ffc994");
+//     $('.table td:nth-child(7):contains(PET)').closest('tr').children('td, th').css("background-color", "#ffc994");
+//     // console.log('estoy en js dedeess');
+// });

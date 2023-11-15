@@ -181,6 +181,7 @@ class AdminProductosPrepedidoController extends ModuleAdminController {
         
         //lista completa de productos vendidos sin stock en pedidos en espera        
         //MODIFICAR test en url_imagen para producción CONCAT( "http://lafrikileria.com/test", "/"
+        //08/11/2023 cambiamos el join de LEFT JOIN lafrips_supplier sup ON sup.id_supplier = pvs.id_default_supplier a id_supplier_solicitar para asegurarnos de que hace join con el proveedor correcto en caso de que lo cambien
         $sql_lista_en_espera = 'SELECT  CONCAT(pvs.id_product,"_",pvs.id_product_attribute) AS el_producto,
         pvs.id_product AS id_product, pvs.id_product_attribute AS id_product_attribute, pvs.product_reference AS referencia, 
         IFNULL(pat.ean13, pro.ean13) AS ean13, pvs.product_name AS nombre,
@@ -207,7 +208,7 @@ class AdminProductosPrepedidoController extends ModuleAdminController {
         CONCAT( "http://lafrikileria.com", "/", ima.id_image, "-home_default/", pla.link_rewrite, ".", "jpg") AS url_imagen,
         CONCAT( "'.$url_product_back.'", pvs.id_product) AS url_producto
         FROM lafrips_productos_vendidos_sin_stock pvs
-        LEFT JOIN lafrips_supplier sup ON sup.id_supplier = pvs.id_default_supplier
+        LEFT JOIN lafrips_supplier sup ON sup.id_supplier = pvs.id_supplier_solicitar
         LEFT JOIN lafrips_product_attribute pat ON pat.id_product = pvs.id_product AND pat.id_product_attribute = pvs.id_product_attribute
         LEFT JOIN lafrips_order_detail ode ON ode.product_id = pvs.id_product AND ode.product_attribute_id = pvs.id_product_attribute AND ode.id_order = pvs.id_order
         LEFT JOIN lafrips_product pro ON pro.id_product = pvs.id_product

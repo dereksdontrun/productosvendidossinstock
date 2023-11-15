@@ -453,7 +453,7 @@ class Productosvendidossinstock extends Module
             }
 
             $id_default_supplier = $product->id_supplier;            
-            $id_order_detail_supplier = $order_product['id_supplier'];            
+            $id_order_detail_supplier = $order_product['id_supplier'];       
 
             //24/06/2020 Para evitar que a veces se escapa algún producto que no tiene permitir pedido y tiene 1 de stock pero, por error, y estando en dos carros al mismo tiempo, se ha permitido la compra a dos clientes casi al mismo tiempo, quedando el stock del producto en negativo y entrando uno de los pedidos en Sin Stock Pagado, lo que hacemos es permitir que recoja este producto pero indicando luego que este producto NO tenía permitir pedido en el momento de la compra.
             //guardamos el valor en ese instante de la variable out_of_stock, así, si no lo tenía marcado lo indicaremos en la vista del módulo
@@ -512,8 +512,9 @@ class Productosvendidossinstock extends Module
                     '0000-00-00 00:00:00', ";
                 }
 
+                //08/11/2023 añadimos el campo id_supplier_solicitar al insert poniendo le valor de $id_order_detail_supplier
                 $sql_insert_lafrips_productos_vendidos_sin_stock = "INSERT INTO lafrips_productos_vendidos_sin_stock 
-                (id_order, id_order_status, payment_module, id_product, id_product_attribute, available_date, fecha_disponible, available_later, prepedido, out_of_stock, checked, product_name, stock_available, product_reference, product_supplier_reference, id_default_supplier, id_order_detail_supplier, product_quantity, anadido, id_employee_anadido, date_anadido, date_add) 
+                (id_order, id_order_status, payment_module, id_product, id_product_attribute, available_date, fecha_disponible, available_later, prepedido, out_of_stock, checked, product_name, stock_available, product_reference, product_supplier_reference, id_default_supplier, id_order_detail_supplier, id_supplier_solicitar, product_quantity, anadido, id_employee_anadido, date_anadido, date_add) 
                 VALUES (".$order->id." ,
                 ".(int)$order->current_state." ,
                 '".$payment_module."' ,
@@ -530,6 +531,7 @@ class Productosvendidossinstock extends Module
                 '".$product_reference."' ,
                 '".$product_supplier_reference."' ,
                 ".$id_default_supplier." ,
+                ".$id_order_detail_supplier." ,
                 ".$id_order_detail_supplier." ,
                 ".$product_quantity." ,
                 ".$sql_employee."
@@ -2442,8 +2444,9 @@ class Productosvendidossinstock extends Module
             $out_of_stock = StockAvailableCore::outOfStock($id_product);
 
             //procedemos a meterlo a productos vendidos sin stock
+            //08/11/2023 añadimos el campo id_supplier_solicitar al insert
             $sql_insert_lafrips_productos_vendidos_sin_stock = "INSERT INTO lafrips_productos_vendidos_sin_stock 
-            (id_order, id_order_status, payment_module, id_product, id_product_attribute, available_date, fecha_disponible, available_later, prepedido, out_of_stock, checked, product_name, stock_available, product_reference, product_supplier_reference, id_default_supplier, id_order_detail_supplier, product_quantity, anadido, id_employee_anadido, date_anadido, date_add) 
+            (id_order, id_order_status, payment_module, id_product, id_product_attribute, available_date, fecha_disponible, available_later, prepedido, out_of_stock, checked, product_name, stock_available, product_reference, product_supplier_reference, id_default_supplier, id_order_detail_supplier, id_supplier_solicitar, product_quantity, anadido, id_employee_anadido, date_anadido, date_add) 
             VALUES (".$id_order." ,
             ".(int)$order->current_state." ,
             '".$payment_module."' ,
@@ -2459,6 +2462,7 @@ class Productosvendidossinstock extends Module
             ".$stock_disponible." ,
             '".$product_reference."' ,
             '".$product_supplier_reference."' ,
+            ".$id_supplier." ,
             ".$id_supplier." ,
             ".$id_supplier." ,
             ".$product_quantity." ,
