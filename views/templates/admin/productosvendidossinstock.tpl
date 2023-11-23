@@ -30,7 +30,7 @@
 *}
   
   <div class="panel clearfix">
-    <h3>Hola {Context::getContext()->employee->firstname} - Producto {if $checked}<span class="badge badge-success">Revisado</span>{/if} Vendido Sin Stock en pedido <a href="{$url_pedido}" target="_blank" title="Ver Pedido" class="link_order">{$id_order}</a> - Estado {$estado_pedido} </h3> 
+    <h3>Hola {Context::getContext()->employee->firstname} - Producto {if $checked}<span class="badge badge-success">Revisado</span>{/if} Vendido Sin Stock en pedido <a href="{$url_pedido}" target="_blank" title="Ver Pedido" class="link_order">{$id_order}</a> - Estado {$estado_pedido} {if $solicitado}<span class="badge badge-success">Solicitado</span>{/if}</h3> 
     {if $checked}<p><span class="badge badge-success">PRODUCTO YA REVISADO - {$nombre_revisador} - <i>{$date_checked}</i></span></p>{/if}   
     {if $out_of_stock != 1}<p><span class="badge badge-pill badge-warning" title="En ocasiones, estas ventas sin stock pueden producirse cuando dos clientes tienen en el carrito el mismo producto, a punto de agotarse, al mismo tiempo">¡ATENCIÓN! Este producto no tenía asignado Permitir Pedidos en el momento de realizarse la compra</span></p>{/if}
     {* <div class="container">   *}
@@ -65,14 +65,27 @@
           Pero si el producto ya está en un pedido de materiales no daremos esa opción sino que mostraremos referencia fecha y creador del pedido *}
           <form action="{$url_base}index.php?controller=AdminProductosVendidosSinStock&token={$token}" method="post">
           {* Si la línea es de antes de meter la creación de pedidos de materiales en este módulo, mostramos un mensaje de que no es procesable, en todo caso  es para pedidos viejos, pero mostramos un mensaje *}
-          {if $id_supply_order && $id_supply_order != 9999999}
-            <hr>
-            <h4>ATENCIÓN - Producto en Pedido de Materiales</h4>
-            Pedido: {$id_supply_order} - {$supply_order_reference}<br>
-            Añadido por {$employee_supply_order_name} en {$date_supply_order}       
-          {elseif $id_supply_order == 9999999}  
-          <hr>
-            <h4>Este pedido es anterior a la gestión de Pedidos de materiales desde este módulo o corresponde a un proveedor "automatizado"</h4>  
+          {if $solicitado}
+            {if $id_supply_order == 1} 
+              <hr>
+              <h4>Este pedido es anterior a la gestión de pedidos de materiales desde este módulo y no fue procesado con esta herramienta</h4>
+            {elseif $id_supply_order == 0}
+              {if $proveedor_automatizado}
+                <hr>
+                <h4>Este pedido corresponde a un proveedor cuyos pedidos están automatizados y no fue procesado con esta herramienta</h4>
+              {else}
+                {* Marcado solicitado manualmente *}
+                <hr>
+                <h4>Producto marcado como solicitado manualmente</h4>                
+                Marcado por {$employee_solicitado_name} el {$date_solicitado}    
+              {/if}
+            {else}
+              {* procesado con este módulo, mostramos datos *}
+              <hr>
+              <h4>ATENCIÓN - Producto en Pedido de Materiales</h4>
+              Pedido: {$id_supply_order} - {$supply_order_reference}<br>
+              Añadido por {$employee_supply_order_name} en {$date_supply_order}  
+            {/if}
           {elseif $info_proveedores_producto|@count gt 1}
             <hr>
             <h4>Cambiar proveedor para solicitar</h4>
@@ -88,7 +101,7 @@
             <button type="submit" id="submitCambiaProveedor_{$id}" class="btn btn-success" name="submitCambiaProveedor" value="{$id}">
               <i class="icon-check"></i> Cambiar
             </button>
-          {/if}
+          {/if}          
         </div>
 
         {* Si hay más de un proveedor para el producto lo mostramos *}

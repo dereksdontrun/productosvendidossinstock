@@ -26,6 +26,13 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
 
         $this->id_employee = Context::getContext()->employee->id;
         $this->employee_name = Context::getContext()->employee->firstname; 
+        //almacenamos los id_supplier de proveedores a los cuales se solicitan los productos de manera automática
+        //Cerdá id 65
+        //Karactermanía 53
+        //Globomatik 156
+        //DMI 160
+        //Disfrazzes 161
+        $this->proveedores_automatizados = array(53, 65, 156, 160, 161);
 
         //08/11/2023 Para el id_supplier tiramos de id_supplier_solicitar
         // a.id_default_supplier AS id_supplier,
@@ -42,7 +49,7 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
         osl.name AS estado_prestashop,
         sup.name AS supplier_name,
         ims.id_image AS id_image,
-        IF (a.id_supply_order = 0, "No", "Si") AS solicitado,
+        IF (a.solicitado, "Si", "No") AS solicitado,
         ROUND(psu.product_supplier_price_te, 2) AS coste';
         // MOD: Sergio - 30/04/2021 Sacar clasificación ABC del producto. Hacemos LEFT JOIN con lafrips_consumos. Si el producto no está, es C, si su antiguedad es menor o igual de 60 días, es B, si está en la tabla y no es novedad, es lo que ponga en la tabla.  Para sacar como mínimo 1, a los valores de menos de 0.5 los ponemos como uno ya que ROUND los dejaría en 0
         // 20/05/2021 Los valores de consumo que indican si es A,B o C ahora se guardan en lafrips_configuration. Los añadimos como variable a la consulta.
@@ -79,8 +86,10 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
         // MOD: Sergio - 12/11/2021 En el JOIN con lafrips_product pongo AND eliminado = 0 para evitar que muestre productos eliminados
         // LEFT JOIN lafrips_product pro ON pro.id_product = a.id_product   
         // 08/11/2023 cambiamos join  LEFT JOIN lafrips_supplier sup ON sup.id_supplier = pro.id_supplier por a.id_supplier_solicitar para que se muestre en la lista con el que está solictado o planeado solicitar y no el default    
+        //17/11/2023 Quitamos de la vista los pedidos no valid
+        //LEFT JOIN lafrips_orders ord ON a.id_order = ord.id_order
         $this->_join = '        
-        LEFT JOIN lafrips_orders ord ON a.id_order = ord.id_order 
+        JOIN lafrips_orders ord ON a.id_order = ord.id_order AND ord.valid = 1
         LEFT JOIN lafrips_order_state ors ON ors.id_order_state = ord.current_state
         LEFT JOIN lafrips_order_state_lang osl ON ors.id_order_state = osl.id_order_state AND osl.id_lang = 1
         JOIN lafrips_product pro ON pro.id_product = a.id_product AND a.eliminado = 0
@@ -244,14 +253,21 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
                 'filter_key' => 'a!checked',                               
             ),         
             //14/11/2023 hacemos esto para poner si o no en un select indicando si el producto está en un pedido o no, es decir, en la consulta sería si id_supply_order = 0 o no.    
+            // 'solicitado' => array(
+            //     'title' => $this->l('Solicitado'),
+            //     'type' => 'select',
+            //     'class' => 'fixed-width-xs',
+            //     'list' => array('No' => 'No', 'Si' => 'Si'),
+            //     'filter_key' => 'solicitado',   
+            //     'havingFilter' => true,
+            //     'filter_type' => 'text',                        
+            // ),
             'solicitado' => array(
                 'title' => $this->l('Solicitado'),
                 'type' => 'select',
                 'class' => 'fixed-width-xs',
-                'list' => array('No' => 'No', 'Si' => 'Si'),
-                'filter_key' => 'solicitado',   
-                'havingFilter' => true,
-                'filter_type' => 'text',                        
+                'list' => array(0 => 'No', 1 => 'Si'),
+                'filter_key' => 'a!solicitado',                    
             ),
             'date_add' => array(
                 'title' => $this->l('Añadido'),
@@ -266,10 +282,12 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
         //añadimos un botón para ver el producto y el botón de revisar. 
         $this->addRowAction('view'); 
         $this->addRowAction('revisado'); 
+        $this->addRowAction('marcarsolicitado'); //parece que no podemos poner solo "solicitado" ya que existe ese nombre en las columnas a mostrar     
 
         //07/11/2023 Añadimos bulk_actions, que añade el checkbox a la izquierda de cada línea, para marcar revisado en bloque
         $this->bulk_actions = array(
-            'updateRevisadoStatus' => array('text' => 'Marcar Revisado', 'icon' => 'icon-refresh')
+            'updateRevisadoStatus' => array('text' => 'Marcar Revisado', 'icon' => 'icon-refresh'),
+            'updateSolicitadoStatus' => array('text' => 'Marcar Solicitado', 'icon' => 'icon-refresh')
         );
 
         parent::__construct();        
@@ -292,10 +310,25 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
         // $name will hold display name
 
         $tpl = $this->createTemplate('helpers/list/list_action_revisado.tpl');
-        $href = 'linkhere';
+        // $href = 'linkhere';
         $tpl->assign(array(
             'id' => $id,        
-            'action' => $this->l('Revisado')
+            'action' => 'Marcar Revisado'
+        ));
+        return $tpl->fetch();
+    }
+
+    public function displayMarcarSolicitadoLink($token = null, $id, $name = null)
+    {
+        // $token will contain token variable
+        // $id will hold id_identifier value
+        // $name will hold display name
+
+        $tpl = $this->createTemplate('helpers/list/list_action_solicitado.tpl');
+        // $href = 'linkhere';
+        $tpl->assign(array(
+            'id' => $id,        
+            'action' => 'Marcar Solicitado'
         ));
         return $tpl->fetch();
     }
@@ -311,7 +344,8 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
         FROM lafrips_productos_vendidos_sin_stock
         WHERE id_supply_order = 0
         AND eliminado = 0
-        AND checked = 1";
+        AND checked = 1
+        AND solicitado = 0";
 
         $suppliers_disponibles = Db::getInstance()->ExecuteS($sql_suppliers_disponibles);
 
@@ -368,13 +402,21 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
         //para que cargue bien el controlador y se pueda filtrar
         parent::postProcess();
 
-        //si se pulsa el botón de Revisado para el producto individual
+        //si se pulsa el botón de Marcar Revisado para el producto individual
         if (Tools::isSubmit('submitRevisado')) {            
             $id_productos_vendidos_sin_stock = Tools::getValue('submitRevisado');
 
             $this->revisarProducto($id_productos_vendidos_sin_stock);
             
         } //fin if submitRevisado 
+
+        //si se pulsa el botón de Marcar Solicitado para el producto individual
+        if (Tools::isSubmit('submitSolicitado')) {            
+            $id_productos_vendidos_sin_stock = Tools::getValue('submitSolicitado');
+
+            $this->marcarSolicitadoProducto($id_productos_vendidos_sin_stock);
+            
+        } //fin if submitSolicitado 
 
         //si se pulsa el botón de Revisado para todos los productos iguales que estén pendientes de revisión
         if (Tools::isSubmit('submitTodosRevisados')) {
@@ -504,7 +546,7 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
         pvs.id_supplier_solicitar, pvs.product_supplier_reference, pvs.product_quantity, pvs.id_order AS id_order, osl.name AS estado_pedido,
         CONCAT( 'http://lafrikileria.com', '/', img.id_image, '-home_default/', 
                 pla.link_rewrite, '.', 'jpg') AS imagen, img.id_image AS existe_imagen, pvs.date_checked AS date_checked, pvs.id_employee AS revisador, 
-        pro.id_manufacturer AS id_manufacturer, pvs.id_supply_order AS id_supply_order, pvs.id_employee_supply_order AS id_employee_supply_order, pvs.date_supply_order AS date_supply_order
+        pro.id_manufacturer AS id_manufacturer, pvs.id_supply_order AS id_supply_order, pvs.id_employee_supply_order AS id_employee_supply_order, pvs.date_supply_order AS date_supply_order, pvs.solicitado AS solicitado, pvs.id_employee_solicitado AS id_employee_solicitado, pvs.date_solicitado AS date_solicitado
         FROM lafrips_productos_vendidos_sin_stock pvs
         JOIN lafrips_orders ord ON ord.id_order = pvs.id_order
         JOIN lafrips_order_state_lang osl ON osl.id_order_state = ord.current_state AND osl.id_lang = 1
@@ -562,10 +604,24 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
             $imagen = $producto_vendido_sin_stock['imagen'];
         }
 
+        $solicitado = $producto_vendido_sin_stock['solicitado'];
+        $id_employee_solicitado = $producto_vendido_sin_stock['id_employee_solicitado'];
+        $employee_solicitado = new Employee($id_employee_solicitado);
+        $employee_solicitado_name = $employee_solicitado->firstname;
+        $date_solicitado = $producto_vendido_sin_stock['date_solicitado']; 
+        //formateamos fecha
+        $date_solicitado = date_create($date_solicitado); 
+        $date_solicitado = date_format($date_solicitado, 'd-m-Y H:i:s');   
+
+        //solicitado tendrá valor 1 si se considera solicitado a proveedor, ya sea por haberse incluido en un pedido o por marcarse manualmente como solicitado. Si tiene valor 0, id_supply_order debería ser 0. Si tiene valor 1 pueden pasar 3 cosas. Es un pedido antiguo, lo he marcado por BD como solicitado para que no aparezcan. A esos les pondré id_supply_order = 1 para reconocerlos en la plantilla. caso 2, que haya sido marcado como solicitado y tiene id_supply_order = 0, es decir, no se ha metido a pedido de materiales. El tercer caso son los productos de Cerdá, Karactermanía, y proveedores dropshipping a los que se hace el pedido mediante API, etc. Estos se quedan al entrar como id_supply_order = 0, pero aquí creamos una variable para reconocerlos:
+        $proveedor_automatizado = 0;
+        if (in_array($id_supplier_solicitar, $this->proveedores_automatizados)) {
+            $proveedor_automatizado = 1;
+        }
+
         $id_supply_order = $producto_vendido_sin_stock['id_supply_order'];
         $id_employee_supply_order = $producto_vendido_sin_stock['id_employee_supply_order'];
-        $date_supply_order = $producto_vendido_sin_stock['date_supply_order'];        
-        //si está en pedido formateamos los datos etc. Para ventas antiguas hemos rellenado id_supply_order con 9999999, de modo que si ese es su pedido lo ignoramos en tpl
+        $date_supply_order = $producto_vendido_sin_stock['date_supply_order']; 
         $supply_order_reference = SupplyOrder::getReferenceById($id_supply_order);
         $employee_supply_order = new Employee($id_employee_supply_order);
         $employee_supply_order_name = $employee_supply_order->firstname;
@@ -748,10 +804,14 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
                 'url_gestor_prepedidos' => $url_gestor_prepedidos,
                 'token' => Tools::getAdminTokenLite('AdminProductosVendidosSinStock'),
                 'url_base' => Tools::getHttpHost(true).__PS_BASE_URI__.'lfadminia/',
+                'solicitado' => $solicitado,
+                'employee_solicitado_name' => $employee_solicitado_name,
+                'date_solicitado' => $date_solicitado,                
                 'id_supply_order' => $id_supply_order,
                 'supply_order_reference' => $supply_order_reference,
                 'employee_supply_order_name' => $employee_supply_order_name,
                 'date_supply_order' => $date_supply_order,
+                'proveedor_automatizado' => $proveedor_automatizado,
             )
         );         
             
@@ -1123,6 +1183,7 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
 
     //función que busca los productos a añadir a pedido para un proveedor
     public function getProductos($id_supplier) {
+        //17/11/2023 Nos aseguramos de que las líneas obtenidas sean de pedidos de cliente válidos, porque peuden haber sido cancelados a posteriori
         $sql_info_productos = "SELECT pvs.id_productos_vendidos_sin_stock, pvs.id_order, pvs.id_product, pvs.id_product_attribute, pvs.product_name, pvs.product_quantity,
         psu.product_supplier_reference, psu.product_supplier_price_te,
         IFNULL(pat.reference, pro.reference) AS product_reference, IFNULL(pat.ean13, pro.ean13) AS ean13
@@ -1132,7 +1193,9 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
             AND psu.id_supplier = $id_supplier
         JOIN lafrips_product pro ON pro.id_product = pvs.id_product
         LEFT JOIN lafrips_product_attribute pat ON pat.id_product = pvs.id_product AND pat.id_product_attribute = pvs.id_product_attribute
+        JOIN lafrips_orders ord ON ord.id_order = pvs.id_order AND ord.valid = 1
         WHERE pvs.checked = 1
+        AND pvs.solicitado = 0
         AND pvs.eliminado = 0
         AND pvs.dropshipping = 0
         AND pvs.id_supply_order = 0
@@ -1192,10 +1255,11 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
         
     }
 
-    //función que actualiza id_supply_order en lafrips_productos_vendidso_sin_stock cada vez que se añade un producto a uj pedido
+    //función que actualiza solicitado y id_supply_order en lafrips_productos_vendidso_sin_stock cada vez que se añade un producto a un pedido
     public function updateProductosVendidosSinStock($id_supply_order, $id_productos_vendidos_sin_stock) {
         $sql_update_productos_vendidos_sin_stock = "UPDATE lafrips_productos_vendidos_sin_stock
-            SET                                                      
+            SET 
+            solicitado = 1,                                                     
             id_supply_order = $id_supply_order,
             id_employee_supply_order = ".$this->id_employee.",
             date_supply_order = NOW(),
@@ -1215,7 +1279,59 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
         return;
     }
     
+    //función para poner solictado a 1 para evitar productos si queremos, sin meter a pedido de materiales
+    public function marcarSolicitadoProducto($id_productos_vendidos_sin_stock) {
+        //sacamos toda la info necesaria de lafrips_productos_vendidos_sin_stock y también la info para cambiar el estado de pedido, poner mensaje, etc
+        $sql_producto_vendido_sin_stock_etc = 'SELECT id_order, product_name, product_reference
+        FROM lafrips_productos_vendidos_sin_stock         
+        WHERE id_productos_vendidos_sin_stock = '.$id_productos_vendidos_sin_stock;
 
+        $producto_vendido_sin_stock_etc = Db::getInstance()->getRow($sql_producto_vendido_sin_stock_etc);
+
+        $id_order = $producto_vendido_sin_stock_etc['id_order'];
+        $product_name = pSQL($producto_vendido_sin_stock_etc['product_name']);
+        $product_reference = $producto_vendido_sin_stock_etc['product_reference'];        
+
+        //marcamos solicitado y date solicitado, y empleado en lafrips_productos_vendidos_sin_stock.
+        $sql_update_productos_vendidos_sin_stock = 'UPDATE lafrips_productos_vendidos_sin_stock
+                SET                                                      
+                solicitado = 1,
+                id_employee_solicitado = '.$this->id_employee.',
+                date_solicitado = NOW(),
+                date_upd = NOW()                 
+                WHERE id_productos_vendidos_sin_stock = '.$id_productos_vendidos_sin_stock;
+
+        Db::getInstance()->execute($sql_update_productos_vendidos_sin_stock);
+
+        //ponemos mensaje en el pedido de producto marcado solicitado, no incluido en pedido        
+        $fecha = date("d-m-Y H:i:s");
+        $mensaje_pedido_producto_solicitado = 'Producto vendido sin stock: 
+        Nombre: '.$product_name.' 
+        Referencia: '.$product_reference.'
+        MARCADO SOLICITADO sin incluir en pedido de materiales
+        por '.$this->employee_name.' el '.$fecha;
+
+        if (!$this->insertarMensaje($id_order, $mensaje_pedido_producto_solicitado)) {
+            $this->errors[] = Tools::displayError('Error generando mensaje interno de producto marcadado como solicitado, en pedido '.$id_order);   
+        }   
+        
+        return;
+    }
+
+    //marcar solicitado todas las líneas con check
+    public function processBulkUpdateSolicitadoStatus()
+    {
+        if (!Tools::getValue('productos_vendidos_sin_stockBox')) {
+            $this->errors[] = Tools::displayError('Debes seleccionar algún producto para marcar como solicitado');
+        } else {
+            // el checkbox lleva el id de la tabla productos_vendidos_sin_stock
+            foreach (Tools::getValue('productos_vendidos_sin_stockBox') as $id_productos_vendidos_sin_stock) {
+
+                $this->marcarSolicitadoProducto($id_productos_vendidos_sin_stock);
+                
+            }
+        }             
+    }
 }
 
 ?>

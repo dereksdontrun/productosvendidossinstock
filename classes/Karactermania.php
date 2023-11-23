@@ -160,9 +160,13 @@ class Karactermania
                 $id_empleado = $info['id_empleado'];
 
                 //hacemos update a lafrips_productos_vendidos_sin_stock para marcar como revisado y a lafrips_pedidos_karactermania para marcar ftp a 1, si el pedido es manual no existe en la tabla y pasamos
+                //16/11/2023 marcamos solicitado para que los pedidos no aparezcan para generar pedidos de materiales en productos vendiso sin stock
                 if (!$pedido_manual) {
                     $sql_update_productos_vendidos_sin_stock = "UPDATE lafrips_productos_vendidos_sin_stock
-                    SET                                                      
+                    SET
+                    solicitado = 1,
+                    id_employee_solicitado = 44,
+                    date_solicitado = NOW(),                                                      
                     checked = 1,
                     date_checked = NOW(),
                     id_employee = 44, 
@@ -268,8 +272,12 @@ class Karactermania
                 if (!$pedido_manual) {
                     foreach($info_ftp AS $info) {    
                         //hacemos update a lafrips_productos_vendidos_sin_stock para marcar como revisado 0
+                        //16/11/2023 también quitamos solicitado para que sea evidente en la lista de productos vendidos sin stock que no se ha pedido
                         $sql_update_productos_vendidos_sin_stock = "UPDATE lafrips_productos_vendidos_sin_stock
-                        SET                                                      
+                        SET          
+                        solicitado = 0,
+                        id_employee_solicitado = 44,
+                        date_solicitado = NOW(),                                            
                         checked = 0,
                         date_checked = NOW(),
                         id_employee = 44, 

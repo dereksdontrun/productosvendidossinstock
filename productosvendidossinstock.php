@@ -552,11 +552,32 @@ class Productosvendidossinstock extends Module
                 $num_dropshipping++;
 
                 //marcamos en lafrips_productos_vendidos_sin_stock dropshipping = 1, esto nos será muy útil a la hora de utilizar el rescatador de pedidos y el pickpack para ignorar los productos que no pasan por almacén. Volvemos a utilizar la función checkTablaVendidosSinStock() que devuelve un array en cuya posición 0 está el id de la tabla. En este punto el producto ya tiene que estar en dicha tabla pero lo metemos en un if.
+                //16/11/2023 Para los pedidos dropshipping no queremos que salgan en el proceso de creación de pedidos de materiales de Productos vendidos sin stock dado que se piden directamente, de modo que aquí marcamos ya dichas líneas de la tabla como solicitado = 1, pero solo de los proveedores que entran por aPI, de modo que printful y mars gaming no. 
+                //POR AHORA NO También marcamos checked a los que se piden directamente, es decir, Globomatik, DMI y Disfrazzes. Printful y Marsgaming no porque aunque los envíen ellos a cliente, se piden "a mano"
+                // '.$checar.'  Por ahora no marcamos checked a estos porque si se pasa a completando igual no los ven
                 if ($info_productos_vendidos_sin_stock = $this->checkTablaVendidosSinStock($order->id, $id_product, $id_product_attribute)) {                   
-                    //devuelve un array con array(id de la tabla, cantidad, eliminado).  
+                    //devuelve un array con array(id de la tabla, cantidad, eliminado). 
+
+                    // $checar = "";
+                    // if (in_array($id_order_detail_supplier, array(156,160,161))) {
+                    //     //si el supplier es de dropshipping con pedido automático lo marcamos checked también
+                    //     $checar = "checked = 1,
+                    //     date_checked = NOW(),
+                    //     id_employee = 44,";
+                    // }
+
+                    $solicitado = "";
+                    if (in_array($id_order_detail_supplier, array(156,160,161))) {
+                        //si el supplier es de dropshipping con pedido automático lo marcamos solicitado también
+                        $solicitado = "solicitado = 1,
+                        id_employee_solicitado = 44,
+                        date_solicitado = NOW(),";
+                    }
+
                     $sql_update_lafrips_productos_vendidos_sin_stock = 'UPDATE lafrips_productos_vendidos_sin_stock
-                    SET
-                    dropshipping = 1
+                    SET  
+                    '.$solicitado.'                  
+                    dropshipping = 1                    
                     WHERE id_productos_vendidos_sin_stock = '.$info_productos_vendidos_sin_stock[0];
         
                     Db::getInstance()->Execute($sql_update_lafrips_productos_vendidos_sin_stock);
@@ -2482,9 +2503,20 @@ class Productosvendidossinstock extends Module
 
         //marcamos en lafrips_productos_vendidos_sin_stock dropshipping = 1, esto nos será muy útil a la hora de utilizar el rescatador de pedidos y el pickpack para ignorar los productos que no pasan por almacén. Volvemos a utilizar la función checkTablaVendidosSinStock() que devuelve un array en cuya posición 0 está el id de la tabla. En este punto el producto ya tiene que estar en dicha tabla pero lo metemos en un if.
         if ($info_productos_vendidos_sin_stock = $this->checkTablaVendidosSinStock($id_order, $id_product, $id_product_attribute)) {                   
-            //devuelve un array con array(id de la tabla, cantidad, eliminado).  
+            //devuelve un array con array(id de la tabla, cantidad, eliminado). 
+            
+            //marcamos solicitado si es producto dropshipping que se pide a proveedor de forma automática (Globomatik, Disfrazzes, DMI)
+            $solicitado = "";
+            if (in_array($id_supplier, array(156,160,161))) {
+                //si el supplier es de dropshipping con pedido automático lo marcamos solicitado también
+                $solicitado = "solicitado = 1,
+                id_employee_solicitado = 44,
+                date_solicitado = NOW(),";
+            }           
+
             $sql_update_lafrips_productos_vendidos_sin_stock = 'UPDATE lafrips_productos_vendidos_sin_stock
             SET
+            '.$solicitado.' 
             dropshipping = 1
             WHERE id_productos_vendidos_sin_stock = '.$info_productos_vendidos_sin_stock[0];
 
