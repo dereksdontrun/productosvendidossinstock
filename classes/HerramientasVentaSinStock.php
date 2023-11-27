@@ -39,6 +39,16 @@ class HerramientasVentaSinStock
         return Db::getInstance()->getValue($sql_ean);
     }
 
+    //función que devuelve la referencia de producto, teniendo en cuenta si es atributo
+    public static function getProductReference($id_product, $id_product_attribute) {
+        return Db::getInstance()->getValue("SELECT IFNULL(pat.reference, pro.reference) AS product_reference
+        FROM lafrips_product pro
+        JOIN lafrips_stock_available ava ON ava.id_product = pro.id_product
+        LEFT JOIN lafrips_product_attribute pat ON pat.id_product = ava.id_product AND pat.id_product_attribute = ava.id_product_attribute
+        WHERE pro.id_product = $id_product
+        AND ava.id_product_attribute = $id_product_attribute");
+    }
+
     //función que comprueba si el pedido tiene productos vendidos sin stock sin revisar y dependiendo del caso cambia el estado de pedido a Completando Pedido, añadiendo mensaje al pedido
     //POR AHORA NO LA USAMOS DESDE ENTRADA EN VERIFICANDO YA QUE CAMBIA EL ESTADO ANTES DE TENER ASIGNADO VERIFICANDO, la dejo aquí. Lo haremos con proceso horario, pero quizás la llame desde el controlador de productosvendidossinstock cuando se pulsa Revisar producto.
     public static function checkCambioEsperandoProductos($id_order, $id_customer_thread) {

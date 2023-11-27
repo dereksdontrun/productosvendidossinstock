@@ -393,7 +393,7 @@ class Karactermania
         
         //recorremos $info_pedido como array, puede contener un producto ovarios, y por cada uno meteremos los datos en lafrips_pedidos_karactermania
         foreach ($info_pedido AS $info_producto) {
-            $referencia_karactermania = $info_producto['referencia_karactermania'];
+            $referencia = $info_producto['referencia'];
             $unidades = $info_producto['unidades'];
 
             //buscar id_product e id_product_attribute, ean referencia prestashop. 
@@ -409,7 +409,7 @@ class Karactermania
             LEFT JOIN lafrips_attribute_lang atl ON atl.id_attribute = atr.id_attribute AND atl.id_lang = 1
             LEFT JOIN lafrips_attribute_group_lang agl ON agl.id_attribute_group = atr.id_attribute_group AND agl.id_lang = 1
             WHERE psu.id_supplier = 53
-            AND psu.product_supplier_reference = "'.$referencia_karactermania.'"';
+            AND psu.product_supplier_reference = "'.$referencia.'"';
 
             $producto_en_prestashop = Db::getInstance()->executeS($sql_producto_en_prestashop);
 
@@ -429,7 +429,7 @@ class Karactermania
             (id_order, id_product, id_product_attribute, referencia_karactermania, unidades, product_name, ean, referencia_prestashop, pedido_manual, id_empleado, date_original, date_add)
             VALUES
             (
-                $id_order, $id_product, $id_product_attribute, '$referencia_karactermania', $unidades, '$product_name', '$ean', '$referencia_prestashop', 1, $id_empleado, NOW(), NOW()
+                $id_order, $id_product, $id_product_attribute, '$referencia', $unidades, '$product_name', '$ean', '$referencia_prestashop', 1, $id_empleado, NOW(), NOW()
             )";
 
             Db::getInstance()->execute($sql_insert);   
