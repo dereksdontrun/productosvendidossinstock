@@ -41,7 +41,7 @@ class Cerda
             foreach($productos_cerda as $producto){
                 $id_product = $producto['id_product'];
                 $id_product_attribute = $producto['id_product_attribute'];
-                $product_name = $producto['product_name']; 
+                $product_name = pSQL($producto['product_name']); 
                 $referencia_prestashop = $producto['product_reference'];               
                 $referencia_cerda = $producto['product_supplier_reference'];
                 $unidades = $producto['product_quantity'];                
@@ -357,7 +357,7 @@ class Cerda
             $id_product = $producto_en_prestashop[0]['id_product'];
             $id_product_attribute = $producto_en_prestashop[0]['id_product_attribute'];
             $referencia_prestashop = $producto_en_prestashop[0]['referencia_prestashop'];
-            $product_name = $producto_en_prestashop[0]['nombre'];
+            $product_name = pSQL($producto_en_prestashop[0]['nombre']);
             $ean = $producto_en_prestashop[0]['ean13'];  
 
             //hacemos insert
