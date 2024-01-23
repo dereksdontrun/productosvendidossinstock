@@ -1211,17 +1211,8 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
 
         //la fecha de entrega p.ej. cinco días a partir de hoy
         //creamos la fecha minima para el input date, hoy más cinco en segundos, pasado de nuevo a fecha Y-m-d
-        // $hoymascincoensegundos = strtotime(date('Y-m-d')) + (86400*5);
-        // $date_delivery_expected = date('Y-m-d', $hoymascincoensegundos).' 00:00:00';   
-
-        
-        //23/01/2024 Hemos metido una columna supply_order_delay a lafrips_mensaje_disponibilidad que nos indica los días que tarda un pedido de materiales en llegar para cada proveedor. Es aproximado, pero si el valor es dos por ejemplo, pondremos $date_delivery_expected hoy + dos días, etc
-        // 86400 segundos en un día
-        if (!$supply_order_delay = $this->getSupplyOrderDelay($id_supplier)) {
-            $supply_order_delay = 5;
-        }
-        $hoy_mas_supply_order_delay = strtotime(date('Y-m-d')) + 86400*$supply_order_delay;
-        $date_delivery_expected = date('Y-m-d', $hoy_mas_supply_order_delay).' 00:00:00';        
+        $hoymascincoensegundos = strtotime(date('Y-m-d')) + (86400*5);
+        $date_delivery_expected = date('Y-m-d', $hoymascincoensegundos).' 00:00:00';   
         
         $supply_order = new SupplyOrder();                
         $supply_order->id_supplier = $id_supplier;
@@ -1262,17 +1253,6 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
             return $pedido_pendiente[0]['id_supply_order'];
         }
         
-    }
-
-    //23/01/2024 función que devuelve los días que tarda en llegar un pedido de materiales desde la tabla lafrips_mensaje_disponibilidad. Devolverá un entero, en caso de no encontrar el proveedor o este tener valor 0 para supply_order_delay, devuelve 5 por defecto
-    public function getSupplyOrderDelay($id_supplier) {
-        $sql_supply_order_delay = "SELECT supply_order_delay FROM lafrips_mensaje_disponibilidad 
-            WHERE id_lang = 1 AND id_supplier = $id_supplier";
-        if (!$supply_order_delay = Db::getInstance()->getValue($sql_supply_order_delay)) {
-            return 5;
-        }
-
-        return $supply_order_delay;
     }
 
     //función que actualiza solicitado y id_supply_order en lafrips_productos_vendidso_sin_stock cada vez que se añade un producto a un pedido
