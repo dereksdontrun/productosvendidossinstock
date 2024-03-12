@@ -14,6 +14,9 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
 
     public function __construct()
     {
+        //24/01/2024 incluimos la clase de herramientas porque contiene la función estática setSupplyOrderDeliveryDate()
+        require_once (dirname(__FILE__).'/../../classes/HerramientasVentaSinStock.php');
+
         $this->bootstrap = true;
         $this->context = Context::getContext();
         $this->identifier = 'id_productos_vendidos_sin_stock';
@@ -1215,13 +1218,10 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
         // $date_delivery_expected = date('Y-m-d', $hoymascincoensegundos).' 00:00:00';   
 
         
-        //23/01/2024 Hemos metido una columna supply_order_delay a lafrips_mensaje_disponibilidad que nos indica los días que tarda un pedido de materiales en llegar para cada proveedor. Es aproximado, pero si el valor es dos por ejemplo, pondremos $date_delivery_expected hoy + dos días, etc
-        // 86400 segundos en un día
-        if (!$supply_order_delay = $this->getSupplyOrderDelay($id_supplier)) {
-            $supply_order_delay = 5;
-        }
-        $hoy_mas_supply_order_delay = strtotime(date('Y-m-d')) + 86400*$supply_order_delay;
-        $date_delivery_expected = date('Y-m-d', $hoy_mas_supply_order_delay).' 00:00:00';        
+        //23/01/2024 Hemos metido una columna supply_order_delay a lafrips_mensaje_disponibilidad que nos indica los días que tarda un pedido de materiales en llegar para cada proveedor. Es aproximado, pero si el valor es dos por ejemplo, pondremos $date_delivery_expected hoy + dos días, etc        
+
+        //Generamos la fecha  en setSupplyOrderDeliveryDate() para tener en cuenta fines de semana etc.  Está en la clase HerramientasVentaSinStock del módulo productosvendidossinstock, la hecho required arriba.
+        $date_delivery_expected = HerramientasVentaSinStock::setSupplyOrderDeliveryDate($id_supplier);
         
         $supply_order = new SupplyOrder();                
         $supply_order->id_supplier = $id_supplier;
@@ -1262,18 +1262,7 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
             return $pedido_pendiente[0]['id_supply_order'];
         }
         
-    }
-
-    //23/01/2024 función que devuelve los días que tarda en llegar un pedido de materiales desde la tabla lafrips_mensaje_disponibilidad. Devolverá un entero, en caso de no encontrar el proveedor o este tener valor 0 para supply_order_delay, devuelve 5 por defecto
-    public function getSupplyOrderDelay($id_supplier) {
-        $sql_supply_order_delay = "SELECT supply_order_delay FROM lafrips_mensaje_disponibilidad 
-            WHERE id_lang = 1 AND id_supplier = $id_supplier";
-        if (!$supply_order_delay = Db::getInstance()->getValue($sql_supply_order_delay)) {
-            return 5;
-        }
-
-        return $supply_order_delay;
-    }
+    }    
 
     //función que actualiza solicitado y id_supply_order en lafrips_productos_vendidso_sin_stock cada vez que se añade un producto a un pedido
     public function updateProductosVendidosSinStock($id_supply_order, $id_productos_vendidos_sin_stock) {

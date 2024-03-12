@@ -228,7 +228,10 @@ class AdminPedidosManualesProveedorController extends ModuleAdminController {
 
         //primero buscamos la referencia en lafrips_product_supplier y sacamos los datos que necesitamos si la encontramos, incluido si tiene permitir pedido, para el caso de que se use este formulario por los de atención cliente para saber stock en productos
         //MODIFICAR test en url_imagen para producción CONCAT( "http://lafrikileria.com/test", "/"
-        $sql_product_supplier = 'SELECT IFNULL(CONCAT(pla.name, " : ", CONCAT(agl.name, " - ", atl.name)), pla.name) AS nombre, 
+
+        //26/02/2024 Corrección al sacar el nombre, que salía duplicado si tenía dobles atributos, dando lugar al error de producto duplicado. Lo solucionamos usando GROUP_CONCAT para unir 
+        // IFNULL(CONCAT(pla.name, " : ", CONCAT(agl.name, " - ", atl.name)), pla.name) AS nombre,
+        $sql_product_supplier = 'SELECT IFNULL(CONCAT(pla.name, " : ", GROUP_CONCAT(DISTINCT agl.name, " - ", atl.name order by agl.name SEPARATOR ", ")), pla.name) AS nombre, 
         IFNULL(pat.reference, pro.reference) AS referencia, IFNULL(pat.ean13, pro.ean13) AS ean13, 
         ima.id_image AS id_imagen, CONCAT( "http://lafrikileria.com", "/", ima.id_image, "-home_default/", 
                 pla.link_rewrite, ".", "jpg") AS url_imagen,

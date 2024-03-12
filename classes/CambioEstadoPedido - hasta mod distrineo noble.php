@@ -10,7 +10,6 @@ require_once(dirname(__FILE__).'/../../../init.php');
 //02/08/2023 Vamos a añadir a este proceso un repaso de los productos del pedido sin stock. Si estos pertenecen a un proveedor considerado rápido en enviar el producto al almacén y no hay otros productos a la espera de proveedores no rápidos en el pedido, y además el cliente escogió GLS para la entrega (no pudiendo escoger GLS 24 ya que para productos sin stock no estaría disponible) cambiariamos también el transporte a GLS 24. Generaremos también un mensaje en el pedido explicándolo.
 //no cambiaremos si algún producto es prepedido (categoría) o es dropshipping con entrega en almacén. Tampoco si entrara de amazon, que puede llevar GLS domicilio
 //Esto no funcionará si alguien cambia el estado del pedido manualmente y por tanto no pasa por aquí.
-//12/03/2024 Ahora quieren que además de cambiar a GLS24 para los proveedores "rápidos" también lo haga para Distrineo y Noble, aunque no sean "rápidos", de modo que para esta chapuza simplemente miraremos los ids de supplier en venta. Lo haremos dentro de la función getSuppliers()
 
 $a = new CambioEstadoPedido();
 
@@ -184,7 +183,6 @@ class CambioEstadoPedido
     }
 
     //función que obtiene los proveedores considerados como rápidos para productos sin stock
-    //12/03/2024 Ahora quieren que además de cambiar a GLS24 para los proveedores "rápidos" también lo haga para Distrineo y Noble, aunque no sean "rápidos", de modo que para esta chapuza simplemente miraremos los ids de supplier en venta.
     public function getSuppliers() {
         //a 02/08/2023 y hasta que me confirmen, saco los id_supplier con rapido = 1 de la tabla lafrips_mensaje_disponibilidad, que son los que cuando entra un pedido sin stock y comunicamos a Connectif se envían como si fueran pedidos con stock dado que son "rápidos". Si no les vale creo aquí el array y ya.
         $sql_suppliers = "SELECT DISTINCT(id_supplier) FROM lafrips_mensaje_disponibilidad WHERE rapido = 1";
@@ -194,10 +192,6 @@ class CambioEstadoPedido
         foreach ($proveedores_rapidos AS $proveedor) {
             $this->proveedores_rapidos[] =  $proveedor['id_supplier'];
         }
-
-        //12/03/2024 Para meter Distrineo y Noble que a esta fecha no son "rápidos" simplemente los meto al array
-        $this->proveedores_rapidos[] =  111;
-        $this->proveedores_rapidos[] =  121;
 
         return;
     }

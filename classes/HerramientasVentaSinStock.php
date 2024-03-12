@@ -193,6 +193,43 @@ class HerramientasVentaSinStock
         return $ct->id;
     }
 
+    //24/01/2024 Función que recibe el id de proveedor y averigua el delay en días que tarda el paquete en llegar desde el proveedor, buscando en la tabla lafrips_mensaje_disponibilidad. Se calcula la fecha supuesta de llegada y en función de la fecha de hoy hay que asegurarse de que entre la fecha de hoy y la de llegada hay dias laborables igual a los dias del delay, sin fin de semana por en medio. Devuelve expected_delivery_date para el pedido de materiales.
+    public static function setSupplyOrderDeliveryDate($id_supplier) {        
+        //date('N') devuelve el día de la semana de hoy, de 1 a 7 siendo 1 lunes.
+        //para sacar el dia de la semana de una fecha dada:
+        // $dateString = '2023-12-02';
+        // $timestamp = strtotime($dateString);
+        // $dayOfWeekNumber = date('N', $timestamp);
     
+        //primero obtenemos el delay para el proveedor. Si no está en la tabla o pone 0 se aplica 5 días por defecto.
+        $sql_supply_order_delay = "SELECT supply_order_delay FROM lafrips_mensaje_disponibilidad 
+            WHERE id_lang = 1 AND id_supplier = $id_supplier";
+        if (!$supply_order_delay = Db::getInstance()->getValue($sql_supply_order_delay)) {
+            $supply_order_delay = 5;
+        }
+    
+        //ahora, a partir de la fecha de hoy, momento de ejecución de este proceso, hay que sumar los días del delay, comprobando el día de la semana que es cada uno, e ignorando los que caigan en fin de semana (6 y 7)
+        $hoy = date('Y-m-d');
+        //si el usuario o el proceso que ejecute esta función lo hace durante el fin de semana, el dia de ejecución no debe contar, por tanto, si $hoy es sábado o domingo, sumamos uno a $supply_order_delay para que tenga en cuenta el día de ejecución como no válido. Si no, si ejecutas esto un sábado, con un proveedor de un día por ejemplo, se pondría como fecha de llegada el lunes, caundo debe ser el martes.
+        if (date('N') > 5) {
+            //hoy es fin de semana
+            $supply_order_delay++;
+        }
+
+        $timestamp = strtotime($hoy);
+        while ($supply_order_delay > 0) {
+            //sumamos un día a $hoy
+            $timestamp = strtotime('+1 day', $timestamp);
+    
+            //comprobamos si el día resultante es sábado o domingo, si lo es, no restamos a $supply_order_delay           
+            if (date('N', $timestamp) < 6) {
+                //es de 1 a 5, luego laborable, restamos
+                $supply_order_delay--;
+            }
+        }
+    
+        //en $timestamp tenemos el día resultante de haber sumado a $hoy x días, evitando fin de semana. Lo devolvemos a fecha utilizable para crear pedido de materiales
+        return  date('Y-m-d', $timestamp).' 00:00:00';
+    }
     
 }
