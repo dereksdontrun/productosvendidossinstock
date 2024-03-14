@@ -343,12 +343,15 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
     public function initContent()
     {
         //sacamos los proveedores dentro de lafrips_productos_vendidos_sin_stock en las líneas que no tienen generado pedido, para no poner un select con toodos los proveedores de Prestashop
-        $sql_suppliers_disponibles = "SELECT DISTINCT id_supplier_solicitar 
-        FROM lafrips_productos_vendidos_sin_stock
-        WHERE id_supply_order = 0
-        AND eliminado = 0
-        AND checked = 1
-        AND solicitado = 0";
+        //14/03/2024 Si se hace una compra, se marca revisado y se cancela el pedido esta consulta lo sacaría indefinidamente, de modo que vamos a cruzar con lafrips_orders para que solo valga para pedidos valid = 1
+        $sql_suppliers_disponibles = "SELECT DISTINCT pvs.id_supplier_solicitar 
+        FROM lafrips_productos_vendidos_sin_stock pvs
+        JOIN lafrips_orders ord ON ord.id_order = pvs.id_order
+        WHERE pvs.id_supply_order = 0
+        AND pvs.eliminado = 0
+        AND pvs.checked = 1
+        AND pvs.solicitado = 0
+        AND ord.valid = 1";
 
         $suppliers_disponibles = Db::getInstance()->ExecuteS($sql_suppliers_disponibles);
 
