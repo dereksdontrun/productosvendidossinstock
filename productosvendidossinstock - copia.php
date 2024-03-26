@@ -958,8 +958,7 @@ class Productosvendidossinstock extends Module
     //25/04/2022 hasta acotar que "vendedores" dropshipping envían a cada sitio, Baleares también pasa a implicar envío previo a almacén (Globomatik no envía a Baleares)
     //habría que marcar como envio_almacen en la tabla lafrips_dropshipping a 1 por cada proveedor si cada uno tiene unas condiciones, pero de momento se hace general
     // Los pedidos con pago Contra reembolso los dirigimos a almacén también
-    //devuelve el id del insert en la tabla como retorno de la llamada a la función insertDropshippingAddress 
-    // 25/03/2024 Hemos añadido una zona de envío Madrid para recogida en tienda allí. Los pedidos para ese destibo que lleven dropshipping deberán ir primero a almacén siempre, de modo que tenemos que detectar el transportista lo primero de todo, y si es recogida en tienda Madrid  o como se llame, se marcará $almacen = 1. Para ello   
+    //devuelve el id del insert en la tabla como retorno de la llamada a la función insertDropshippingAddress    
     public function setAddressInfo($id_order) {
         //sacamos el método de pago, si es Contrareembolso o ClickCanarias, se enviará a almacén, sino, comprobamos id_address_delivery para saber a donde va y si se desvía a almacén. 
         $order = new Order($id_order);
@@ -967,21 +966,6 @@ class Productosvendidossinstock extends Module
         if (Validate::isLoadedObject($order)) {
             $almacen = 0;
 
-            //25/03/2024 comprobamos el id_carrier de recogida en tienda madrid
-            if (Configuration::get('ID_CARRIER_REFERENCE_RECOGIDA_TIENDA_MADRID')) {
-                
-                if ($order->id_carrier == Db::getInstance()->getValue("SELECT id_carrier 
-                FROM lafrips_carrier 
-                WHERE active = 1 
-                AND deleted = 0 
-                AND id_reference = ".(int)Configuration::get('ID_CARRIER_REFERENCE_RECOGIDA_TIENDA_MADRID')." 
-                ORDER BY id_carrier DESC")) {
-                    $almacen = 1;
-
-                }                
-            } 
-
-            //comprobamos si el pago es contra reembolso o clickcanarias
             if ($order->module == 'codfee' || $order->module == 'clickcanarias') {
                 $almacen = 1;
             } 
