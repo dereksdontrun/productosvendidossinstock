@@ -94,7 +94,7 @@ class Disfrazzes
                 } else {
                     $error = 'Error chequeando tabla Dropshipping Disfrazzes para producto anadido';
     
-                    Productosvendidossinstock::insertDropshippingLog($error, $id_pedido, 161, null, null, null);
+                    Productosvendidossinstock::insertDropshippingLog($error, $id_order, 161, null, null, null);
                 }  
             } else {
                 //hay algún error

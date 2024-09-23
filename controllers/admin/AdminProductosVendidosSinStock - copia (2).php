@@ -543,8 +543,6 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
     public function renderView(){
         //como no hemos generado una clase etc para el controlador, recogemos de la url el valor del id del producto en lafrips_productos_vendidos_sin_stock. Con eso, sacamos todoos los datos necesarios y los asignamos a variables smarty para mostrarlo en el tpl que asignamos también más abajo, que será productosvendidossinstock.tpl
         //27/08/2020 Después de añadir a la web Cerdá Kids, queremos que cuando se trate de uno de esos productos sea bien claro. Se les diferencia bien por su id_manufacturer = 76
-
-        //23/09/2024 Vamos a mostrar un mensaje si se cambia el proveedor al que solicitar el producto y se vuelve a entrar en la ficha, de modo que aparezca el proveedor original durante la compra, a cual cambió y quién y cuando lo hizo, todos datos que quedan registrados al hacer el cambio. id_employee_cambio_supplier, id_default_supplier AS id_original_supplier, date_cambio_supplier
         
         $id_producto_vendido_sin_stock = Tools::getValue('id_productos_vendidos_sin_stock');
 
@@ -554,7 +552,7 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
         pvs.id_supplier_solicitar, pvs.product_supplier_reference, pvs.product_quantity, pvs.id_order AS id_order, osl.name AS estado_pedido,
         CONCAT( 'http://lafrikileria.com', '/', img.id_image, '-home_default/', 
                 pla.link_rewrite, '.', 'jpg') AS imagen, img.id_image AS existe_imagen, pvs.date_checked AS date_checked, pvs.id_employee AS revisador, 
-        pro.id_manufacturer AS id_manufacturer, pvs.id_supply_order AS id_supply_order, pvs.id_employee_supply_order AS id_employee_supply_order, pvs.date_supply_order AS date_supply_order, pvs.solicitado AS solicitado, pvs.id_employee_solicitado AS id_employee_solicitado, pvs.date_solicitado AS date_solicitado, pvs.id_employee_cambio_supplier AS id_employee_cambio_supplier, pvs.id_default_supplier AS id_original_supplier, pvs.date_cambio_supplier AS date_cambio_supplier
+        pro.id_manufacturer AS id_manufacturer, pvs.id_supply_order AS id_supply_order, pvs.id_employee_supply_order AS id_employee_supply_order, pvs.date_supply_order AS date_supply_order, pvs.solicitado AS solicitado, pvs.id_employee_solicitado AS id_employee_solicitado, pvs.date_solicitado AS date_solicitado
         FROM lafrips_productos_vendidos_sin_stock pvs
         JOIN lafrips_orders ord ON ord.id_order = pvs.id_order
         JOIN lafrips_order_state_lang osl ON osl.id_order_state = ord.current_state AND osl.id_lang = 1
@@ -638,22 +636,6 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
         $date_supply_order = date_format($date_supply_order, 'd-m-Y H:i:s');                
 
         $supplier_name = Supplier::getNameById($id_supplier_solicitar);
-
-        //23/09/2024 datos de cambio de proveedor (si existe)
-        $id_employee_cambio_supplier = $producto_vendido_sin_stock['id_employee_cambio_supplier'];
-        $employee_cambio_supplier_name = '';
-        //si tenemos id de empleado de cambio de proveedor es que se ha hecho, sacamos el nombre
-        if ($id_employee_cambio_supplier) {
-            $employee_cambio_supplier = new Employee($id_employee_cambio_supplier);
-            $employee_cambio_supplier_name = $employee_cambio_supplier->firstname;
-        }
-        $id_original_supplier = $producto_vendido_sin_stock['id_original_supplier'];
-        $original_supplier = Supplier::getNameById($id_original_supplier);
-        $date_cambio_supplier = $producto_vendido_sin_stock['date_cambio_supplier'];
-        //formateamos fecha
-        $date_cambio_supplier = date_create($date_cambio_supplier); 
-        $date_cambio_supplier = date_format($date_cambio_supplier, 'd-m-Y H:i:s'); 
-
         
         //sacamos los proveedores que tiene asignados, sacando el objeto prestashop collection y extrayendo los suppliers
         $collection_proveedores_producto = ProductSupplier::getSupplierCollection($id_product); 
@@ -836,9 +818,6 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
                 'employee_supply_order_name' => $employee_supply_order_name,
                 'date_supply_order' => $date_supply_order,
                 'proveedor_automatizado' => $proveedor_automatizado,
-                'employee_cambio_supplier_name' => $employee_cambio_supplier_name,
-                'original_supplier' => $original_supplier,
-                'date_cambio_supplier' => $date_cambio_supplier
             )
         );         
             

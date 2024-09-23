@@ -64,14 +64,6 @@
           {* Si hay más de un proveedor para el producto mosraremos un select para dar la opción de cambiar su proveedor por defecto. Traemos aquí la apertura del form 
           Pero si el producto ya está en un pedido de materiales no daremos esa opción sino que mostraremos referencia fecha y creador del pedido *}
           <form action="{$url_base}index.php?controller=AdminProductosVendidosSinStock&token={$token}" method="post">
-          {* 23/09/2024 Si el producto tenía más proveedores y se cambió a otro tendremos la variable employee_cambio_supplier_name con algún texto, si no  estará vacía. Mostramos mensaje con el cambio que se hizo. Saldrá el último si se hicieron varios *}
-          {if $employee_cambio_supplier_name}
-            <hr>
-            <h4>ATENCIÓN - A este producto se le cambió el proveedor de venta original</h4>
-            Proveedor original: {$original_supplier}<br>
-            Proveedor después de cambio: {$supplier_name}<br>
-            Cambio por {$employee_cambio_supplier_name} en {$date_cambio_supplier}  
-          {/if}
           {* Si la línea es de antes de meter la creación de pedidos de materiales en este módulo, mostramos un mensaje de que no es procesable, en todo caso  es para pedidos viejos, pero mostramos un mensaje *}
           {if $solicitado}
             {if $id_supply_order == 1} 

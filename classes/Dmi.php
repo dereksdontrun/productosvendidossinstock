@@ -79,7 +79,7 @@ class Dmi
                 } else {
                     $error = 'Error chequeando tabla Dropshipping Dmi para producto anadido';
     
-                    Productosvendidossinstock::insertDropshippingLog($error, $id_pedido, 160, null, null, null);
+                    Productosvendidossinstock::insertDropshippingLog($error, $id_order, 160, null, null, null);
                 }  
             } else {
                 //hay algún error
@@ -295,7 +295,7 @@ class Dmi
 
             $error = 'Error haciendo conexión SOAP a DMI - Excepción: '.$e->getMessage();
 
-            Productosvendidossinstock::insertDropshippingLog(pSQL($error), $id_order, 160, null, null, $id_lafrips_dropshipping);            
+            Productosvendidossinstock::insertDropshippingLog(pSQL($error), $codped, 160, null, null, $id_lafrips_dropshipping);            
 
             $mensaje .= '<br> - Excepción capturada conectando a API: '.$e->getMessage();
         }
@@ -327,10 +327,11 @@ class Dmi
             $params['nombre'] = $nombre;
             $params['Usuario_Registrado'] = "1"; //siempre 1
             $params['LineasDelPedido'] = $lineas_pedido;
-            $params['Validacion_del_Pedido'] = "true"; //siempre true
+            //22/05/2024 modificamos validacion del pedido a true y no "true" y recogidaendmi a flase y no "False"
+            $params['Validacion_del_Pedido'] = true; //siempre true
             $params['EmailDelCliente'] = "tienda@lafrikileria.com";  //nuestro email
             $params['ComentarioDelPedido'] = "";
-            $params['RecogidaEnDMI'] = "False";
+            $params['RecogidaEnDMI'] = false;
             $params['TotalPedido'] = $total_pedido; //lo recalculan así que es indiferente, hacemos calculo con nuestro coste
             $params['tipo_transaccion'] = "";  //permite bloquear un pedido, poniendo "bloquear", si por ejemplo tiene pago transferencia, hasta estar seguro del pago, lo usamos para pruebas (¿?no funciona¿?)
 
@@ -345,7 +346,7 @@ class Dmi
 
             $error = 'Error en llamada a función del servicio SOAP de DMI - Excepción: '.$e;
 
-            Productosvendidossinstock::insertDropshippingLog($error, $id_order, 160, null, null, $id_lafrips_dropshipping);            
+            Productosvendidossinstock::insertDropshippingLog($error, $codped, 160, null, null, $id_lafrips_dropshipping);            
 
             $mensaje .= '<br> - Excepción capturada en llamada a función del servicio SOAP de DMI: '.$e;
 
@@ -450,9 +451,9 @@ class Dmi
             // $cuentas = array('sergio@lafrikileria.com','beatriz@lafrikileria.com','alberto@lafrikileria.com');
             $cuentas = array('sergio@lafrikileria.com');
 
-            $aviso = 'El pedido '.$id_order.' que contiene productos de DMI ha sido solicitado correctamente pero la API lo ha rechazado, quedando sin aceptar por su sistema y en espera de revisarlo en Prestashop - '.date("Y-m-d_His");
+            $aviso = 'El pedido '.$codped.' que contiene productos de DMI ha sido solicitado correctamente pero la API lo ha rechazado, quedando sin aceptar por su sistema y en espera de revisarlo en Prestashop - '.date("Y-m-d_His");
 
-            Productosvendidossinstock::enviaEmail($cuentas, $aviso, 'DMI', $id_order);
+            Productosvendidossinstock::enviaEmail($cuentas, $aviso, 'DMI', $codped);
         }
         
         //si tenemos un error api (hubo excepción o no ha habido response) comprobamos si ya lo tenía o lo marcamos en lafrips_dropshipping
@@ -481,14 +482,14 @@ class Dmi
 
             $cuentas = array('sergio@lafrikileria.com');
 
-            Productosvendidossinstock::enviaEmail($cuentas, $mensaje, 'DMI', $id_order);
+            Productosvendidossinstock::enviaEmail($cuentas, $mensaje, 'DMI', $codped);
 
             return false;
         }
 
         $cuentas = array('sergio@lafrikileria.com');
 
-        Productosvendidossinstock::enviaEmail($cuentas, $mensaje, 'DMI', $id_order);
+        Productosvendidossinstock::enviaEmail($cuentas, $mensaje, 'DMI', $codped);
 
         return true;
 

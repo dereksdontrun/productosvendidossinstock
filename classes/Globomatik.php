@@ -79,7 +79,7 @@ class Globomatik
                 } else {
                     $error = 'Error chequeando tabla Dropshipping Globomatik para producto anadido';
     
-                    Productosvendidossinstock::insertDropshippingLog($error, $id_pedido, 156, null, null, null);
+                    Productosvendidossinstock::insertDropshippingLog($error, $id_order, 156, null, null, null);
                 }  
             } else {
                 //hay algún error
@@ -370,7 +370,7 @@ class Globomatik
 
             // $error = 'Error haciendo petición a API Globomatik - Excepción: '.$e;
 
-            Productosvendidossinstock::insertDropshippingLog(pSQL($error), $id_order, 156, null, null, $id_lafrips_dropshipping);            
+            Productosvendidossinstock::insertDropshippingLog(pSQL($error), $codPedidoCliente, 156, null, null, $id_lafrips_dropshipping);            
 
             $mensaje .= '<br> - Excepción capturada llamando a API: '.$exception;
             
@@ -458,9 +458,9 @@ class Globomatik
                 // $cuentas = array('sergio@lafrikileria.com','beatriz@lafrikileria.com','alberto@lafrikileria.com');
                 $cuentas = array('sergio@lafrikileria.com');
 
-                $aviso = 'El pedido '.$id_order.' que contiene productos de Globomatik ha sido solicitado correctamente pero la API lo ha rechazado, quedando sin aceptar por su sistema y en espera de revisarlo en Prestashop - '.date("Y-m-d_His");
+                $aviso = 'El pedido '.$codPedidoCliente.' que contiene productos de Globomatik ha sido solicitado correctamente pero la API lo ha rechazado, quedando sin aceptar por su sistema y en espera de revisarlo en Prestashop - '.date("Y-m-d_His");
 
-                Productosvendidossinstock::enviaEmail($cuentas, $aviso, 'Globomatik', $id_order);
+                Productosvendidossinstock::enviaEmail($cuentas, $aviso, 'Globomatik', $codPedidoCliente);
             }
 
         } else {
@@ -517,14 +517,14 @@ class Globomatik
 
             $cuentas = array('sergio@lafrikileria.com');
 
-            Productosvendidossinstock::enviaEmail($cuentas, $mensaje, 'Globomatik', $id_order);
+            Productosvendidossinstock::enviaEmail($cuentas, $mensaje, 'Globomatik', $codPedidoCliente);
 
             return false;
         }
 
         $cuentas = array('sergio@lafrikileria.com');
 
-        Productosvendidossinstock::enviaEmail($cuentas, $mensaje, 'Globomatik', $id_order);
+        Productosvendidossinstock::enviaEmail($cuentas, $mensaje, 'Globomatik', $codPedidoCliente);
 
         return true;
 
