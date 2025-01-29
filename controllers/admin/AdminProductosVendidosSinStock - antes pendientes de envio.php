@@ -37,22 +37,6 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
         //Disfrazzes 161
         $this->proveedores_automatizados = array(53, 65, 156, 160, 161);
 
-        //27/01/2025 para procesar pedidos de materiales a los proveedores que pueden o no hacer dropshipping necesitamos primero identificar el estado de pedido Pendiente de envío, y segundo la correspondencia de "Proveedor normal" (Redstring) con "proveedor dropshipping especial" (Dropshipping Redstring)
-        $this->id_estado_pendiente_de_envio = 88;
-
-        //el id de redstring, 24, corresponde al id 176 de dropshipping redstring, el otro igual para amont
-        $this->proveedores_dropshipping_especial = array(24 => 176, 50 => 177);
-
-        //estados de pedido finales para los pedidos de dropshipping especial según el proveedor
-        //Redstring -> pendiente envío R, amont -> pendiente envío A
-        $this->estados_pedido_dropshipping_especial = array(24 => 87, 50 => 86);
-
-        //se pondrá en true si estamos trabajando con un pedido de materiales para dropshipping especial
-        $this->dropshipping_especial = false;
-
-        //array para almacenar los id_order,id_supplier de los pedidos de dropshipping especial que habrá que cambiar de estado al final del proceso de creación del pedido de materiales
-        $this->pedidos_dropshipping_especial = array();
-
         //08/11/2023 Para el id_supplier tiramos de id_supplier_solicitar
         // a.id_default_supplier AS id_supplier,
         $this->_select = '
@@ -360,17 +344,14 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
     {
         //sacamos los proveedores dentro de lafrips_productos_vendidos_sin_stock en las líneas que no tienen generado pedido, para no poner un select con toodos los proveedores de Prestashop
         //14/03/2024 Si se hace una compra, se marca revisado y se cancela el pedido esta consulta lo sacaría indefinidamente, de modo que vamos a cruzar con lafrips_orders para que solo valga para pedidos valid = 1
-        //27/01/2025 necesitamos diferenciar los proveedores en los que hacemos dropshipping especial, como Amont y Redstring, que si el pedido solo lleva productos suyos lo cambiamos de estado al entrar a Pendiente de Envío. Como si hay productos para esos pedidos y también para pedidos mezclados nos van a salir dos pedidos de materiales, he creado por cada proveedor de estos otro llamado Dropshipping Redstring, dropshipping Amont, etc, de modo que modificamos esta consulta para sacar también el estado actual del pedido de cliente y agru`pamos de modo que si el estado de algún pedido es Pendiente de enviar (id 88) pondremos en el select ese proveedor de dropshipping. De moemnto lo pongo aquí en código pero en algún momento debería ser alguna variable para consultar
-        //El group by hace que si el estado de pedido es 88 lo usa para agrupar esos pedidos, si es otro estado los agrupa juntos al no incluir en el group by
-        $sql_suppliers_disponibles = "SELECT pvs.id_supplier_solicitar, ord.current_state 
+        $sql_suppliers_disponibles = "SELECT DISTINCT pvs.id_supplier_solicitar 
         FROM lafrips_productos_vendidos_sin_stock pvs
         JOIN lafrips_orders ord ON ord.id_order = pvs.id_order
         WHERE pvs.id_supply_order = 0
         AND pvs.eliminado = 0
         AND pvs.checked = 1
         AND pvs.solicitado = 0
-        AND ord.valid = 1
-        GROUP BY pvs.id_supplier_solicitar , IF(ord.current_state = ".$this->id_estado_pendiente_de_envio.", ord.current_state, '')";
+        AND ord.valid = 1";
 
         $suppliers_disponibles = Db::getInstance()->ExecuteS($sql_suppliers_disponibles);
 
@@ -379,20 +360,8 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
         } else {
             $info_proveedores = array();
             //por cada línea de pedido trabajaremos
-            foreach ($suppliers_disponibles AS $supplier){
-                //27/01/2025 si el estado es 88, pendiente de envío, buscaremos en el array de proveedores especiales de dropshipping la correspondencia para sacar su id_supplier de "dropshipping" 
-                $current_state = $supplier['current_state'];
-
-                if ($current_state == $this->id_estado_pendiente_de_envio) {
-                    //si el estado es pendiente de envío, buscamos en el array $proveedores_dropshipping_especial la correspondencia del proveedor "normal" con su proveedor "dropshipping"
-                    $id_supplier_dropshipping_especial = $this->proveedores_dropshipping_especial[$supplier['id_supplier_solicitar']];
-
-                    //con esto nos aparecerá el proveedor dropshipping especial en el select y al seleccionarlo podremos saber luego que solo hay que buscar los productos revisados que sean del proveedor X y que estén en pedidos en estado Pendiente de envío
-                    $info_proveedores[$id_supplier_dropshipping_especial] = Supplier::getNameById($id_supplier_dropshipping_especial);
-                } else {
-                    $info_proveedores[$supplier['id_supplier_solicitar']] = Supplier::getNameById($supplier['id_supplier_solicitar']);
-                }
-                
+            foreach ($suppliers_disponibles AS $id_supplier){ 
+                $info_proveedores[$id_supplier['id_supplier_solicitar']] = Supplier::getNameById($id_supplier['id_supplier_solicitar']);
             }
             
             //ordenamos el array por orden alfabético
@@ -543,9 +512,6 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
 
         //si se pulsa el botón de generar pedido de materiales
         if (Tools::isSubmit('submitGenerarPedido')) {               
-            //reseteamos por si acaso
-            $this->dropshipping_especial = false;
-
             //id del proveedor a generar pedido, sacado del select
             if ($id_supplier_pedido = Tools::getValue('proveedores_solicitar')) {
                 //recogemos el contenido del input para la referencia de pedido
@@ -1117,22 +1083,7 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
     //función que recibiendo un id_supplier organiza la creación de un pedido de materiales con los productos de productos vendidos sin stock que no tengan asignado un pedido en id_supply_order
     //Tendremos que buscar los productos de la tabla cuyo id_supplier_solicitar coincida con el escogido y cuyo campo id_supply_order valga 0. De esos productos sacaremos las unidades a pedir e iremos generando un nuevo pedido, pero comprobando primero si ya existe un pedido para dicho proveedor que esté en estado pedido en creación, id 1, en cuyo caso los añadiremos al pedido.
     //la función llamará a otra con el id_supply_order a utilizar
-    //27/01/2025 Empezamos a hacer pedidos dropshipping con Amont y Redstring, para lo cual solo recogeremos los pedidos que solo contengan productos de dichos proveedores. Estos pedidos entrarán como Pendiente de Envío a Prestashop (o se les cambiará en proceso cron). Necesitamos crear pedido de materiales aparte para los productos de esos pedidos ya que en Prestashop se restan como pedidos normales al pasarlos a enviado, pero el stock no nos llega al almacén, por tanto, esos productos que no llegarán a almacén los sumamos con un pedido de materiales y al pasarse a enviado se restarán de nuevo. Como para Redstring y Amont, y puede que otros en el futuro, también creamos pedidos de materiales normales, que si vendrán a almacén, puede suceder que tengamos uno normal abierto y al querer crear el de dropshipping nos pregunte o no nos deje hacerlo, de modo que he creado un proveedor "dropshipping" nuevo por cada proveedor con el que hagamos esto, y a la hora de cargar el select se separan los proveedores normales del especial (función init()), poniendo otro nombre. Con esto nos aparecerá el proveedor dropshipping especial en el select y al seleccionarlo podremos saber luego que solo hay que buscar los productos revisados que sean del proveedor X y que estén en pedidos en estado Pendiente de envío. Además, al nombre del pedido de material le añadiremos siempre DROP_ por delante
     public function generarPedidoMateriales($id_supplier, $referencia_pedido) {
-        $aviso = "";
-        //necesitamos saber si el id_supplier que nos llega corresponde a alguno de los proveedores especiales de dropshipping, para ello buscamos en los values del array de proveedores si existe, en cuyo caso podemos sacar su key, que corresponde al proveedor "normal" para ese id_supplier. array_search devuelve la key si encuentra el value y null si no lo encuentra
-        if ($id_supplier_original = array_search($id_supplier, $this->proveedores_dropshipping_especial)) {
-            //se corresponde a proveedor especial, ponemos en true el valor de $this->dropshipping_especial
-            $this->dropshipping_especial = true;
-
-            $this->confirmations[] = "Pedido de dropshipping especial";
-
-            $aviso = "de Dropshipping Especial ";
-
-            //asignamos el id_supplier original a $id_supplier porque aunque sea dropshipping, el pedido de materiales debe hacerse para el proveedor original, o no corresponderían los productos. En la función pedidosCreacionCurso() gracias a $this->dropshipping_especial sabremos que tenemos que buscar pedidos de materiales con "DROP_" en el nombre, y si no hay, lo crearemos con ese prefijo
-            $id_supplier = $id_supplier_original;
-        }
-
         //primero comprobamos si existe algún pedido de materiales para este proveedor en estado pedido en creación en curso
         if ($id_supply_order = $this->pedidosCreacionCurso($id_supplier)) {
             //existe pedido. comprobamos que la función devuelve solo un valor, que será el id de pedido. Si devuelve varios mostramos error con las referencias de los pedidos de proveedores.
@@ -1142,7 +1093,7 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
                     $mensaje_error_referencias .= $supply_order['reference'].", ";
                 }
 
-                $this->errors[] = Tools::displayError('Existen varios pedidos '.$aviso.'en Creación en curso para el proveedor '.Supplier::getNameById($id_supplier).': '.$mensaje_error_referencias."\nPara continuar no puede haber más de un pedido en estado Creación en curso para este proveedor");                       
+                $this->errors[] = Tools::displayError('Existen varios pedidos en Creación en curso para el proveedor '.Supplier::getNameById($id_supplier).': '.$mensaje_error_referencias."\nPara continuar no puede haber más de un pedido en estado Creación en curso para este proveedor");                       
                 
                 return;
             } else {
@@ -1152,7 +1103,7 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
         } else {
             //no hay pedidos en Creación en curso para el proveedor, generamos uno nuevo
             if (!$id_supply_order = $this->crearPedidoMateriales($id_supplier, $referencia_pedido)) {
-                $this->errors[] = Tools::displayError('Error generando el pedido '.$aviso.'para el proveedor '.Supplier::getNameById($id_supplier)); 
+                $this->errors[] = Tools::displayError('Error generando el pedido para el proveedor '.Supplier::getNameById($id_supplier)); 
 
                 return;
             }
@@ -1165,11 +1116,7 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
     }
 
     //función que recibe el id_supply_order y busca y organiza los productos para meter
-    //24/01/2025 Para los procesos que hacemos de "dropshipping" con Amont y Redstring, por ahora, queremos que los pedidos cuyo estado sea Pendiente de envío, cuando se genere el pedido de materiales, los pase a Pendiente de envío A o R dependiendo del proveedor. Por ahora lo queremos hacer en tiempo real, cuando se genera el pedido de materiales, no cada hora como el paso a completando pedido, ya que necesitarán obtener las etiqeutas de envío. En getProductos() sacaremos el estado actual del pedido y solo los productos que corresponadan según ese estado
     public function completaPedidoMateriales($id_supply_order) {
-        if ($this->dropshipping_especial) {
-            $aviso = "de Dropshipping Especial ";
-        }
         //obtenemos el id_supplier
         $sql_id_supplier = "SELECT id_supplier FROM lafrips_supply_order WHERE id_supply_order = $id_supply_order";
 
@@ -1177,93 +1124,29 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
         
         //tenemos en $id_supply_order el id de pedido al que añadir productos, ya sea nuevo o existente. obtenemos los productos a incluir
         if (!$info_productos = $this->getProductos($id_supplier)) {
-            $this->errors[] = Tools::displayError('No se encuentran productos revisados para generar pedido '.$aviso.'para el proveedor '.Supplier::getNameById($id_supplier)); 
+            $this->errors[] = Tools::displayError('No se encuentran productos revisados para generar pedido para el proveedor '.Supplier::getNameById($id_supplier)); 
 
             return;
         } else {
-            $this->confirmations[] = "<br>Encontrados ".count($info_productos)." productos para generar pedido ".$aviso."para el proveedor ".Supplier::getNameById($id_supplier); 
+            $this->confirmations[] = "<br>Encontrados ".count($info_productos)." productos para generar pedido para el proveedor ".Supplier::getNameById($id_supplier); 
 
             foreach($info_productos AS $info_producto) {
                 $this->setSupplyOrderDetail($id_supply_order, $info_producto);
 
-                //generamos mensaje para pedido indicando el pedido de materiales
+                //generamos mensaje para pedido indicando el epdido de materiales
                 $fecha = date("d-m-Y H:i:s");
                 $mensaje_pedido_materiales_producto = 'Producto vendido sin stock: 
                 Nombre: '.$info_producto['product_name'].' 
                 Referencia: '.$info_producto['product_reference'].'
                 Solicitado a : '.Supplier::getNameById($id_supplier).'
-                Añadido a Pedido de Materiales '.strtoupper($aviso).': Id: '.$id_supply_order.' - <b>'.SupplyOrder::getReferenceById($id_supply_order).'</b>
+                Añadido a Pedido de Materiales: Id: '.$id_supply_order.' - <b>'.SupplyOrder::getReferenceById($id_supply_order).'</b>
                 por '.$this->employee_name.' el '.$fecha;
 
                 if (!$this->insertarMensaje($info_producto['id_order'], $mensaje_pedido_materiales_producto)) {
-                    $this->errors[] = Tools::displayError('Error generando mensaje interno de producto añadido a pedido de materiales '.$aviso.'en pedido '.$info_producto['id_order']);   
+                    $this->errors[] = Tools::displayError('Error generando mensaje interno de producto añadido a pedido de materiales en pedido '.$info_producto['id_order']);   
                 }        
-
-                //metemos el array id_order,id_supplier a $this->pedidos_dropshipping_especial si es de dropshipping especial
-                if ($this->dropshipping_especial) {
-                    $this->pedidos_dropshipping_especial[] = array($info_producto['id_order'], $id_supplier);
-                }
             }            
         }
-
-        //si estamos procesando un pedido de materiales de dropshipping especial queremos cambiar los estados de los pedidos que contienen los productos a pedir. Lo hacemos todos juntos porque un pedido puede tener varios productos
-        if ($this->dropshipping_especial) {
-            $this->cambiarEstadoPedidos();
-        }
-    }
-
-    //función que procesa el array $pedidos_dropshipping_especial quitando duplicados y cambiando el estado de pedido a lo que corresponda según el id_supplier
-    public function cambiarEstadoPedidos() {
-        //primero aseguramos que para los pedidos con varios productos no tengamos duplicados en el array de pedidos
-        //array_map serialize transforma el contenido del aray en una cadena facil de comparar, array_unique elimina duplicados, y array_map unserialze vuelve a dar el formato array correcto
-        $this->pedidos_dropshipping_especial = array_map('unserialize', array_unique(array_map('serialize', $this->pedidos_dropshipping_especial)));
-
-        $employee = new Employee(44);
-
-        //por cada pedido comprobamos a qué estado tiene cambiarse según el id_supplier basados en el array $estados_dropshipping_especial, que sería Pendiente de envío R para redstring, A para Amont, de momento
-        foreach ($this->pedidos_dropshipping_especial AS $pedido) {
-            $id_order = $pedido[0];
-            $id_supplier = $pedido[1];
-
-            $id_nuevo_estado = $this->estados_pedido_dropshipping_especial[$id_supplier];
-
-            $order = new Order($id_order);
-
-            //cambiamos estado de orden a Completando Pedido, ponemos id_employee 44 que es Automatizador, para log
-            $history = new OrderHistory();
-            $history->id_order = $id_order;
-            $history->id_employee = $employee->id;
-            //comprobamos si ya tiene el invoice, payment etc, porque puede duplicar el método de pago. hasInvoice() devuelve true o false, y se pone como tercer argumento de changeIdOrderState(). Tenemos instanciado el pedido en $this->order        
-            $use_existing_payment = !$order->hasInvoice();
-            $history->changeIdOrderState($id_nuevo_estado, $id_order, $use_existing_payment); 
-            $history->add(true);
-            if ($history->save()) {
-                $nombre_estado = Db::getInstance()->getValue("SELECT name FROM lafrips_order_state_lang WHERE id_lang = 1 AND id_order_state = $id_nuevo_estado");
-                
-                //generamos mensaje para pedido sin stock pagado para producto revisado            
-                $mensaje_pedido_sin_stock_estado = 'Pedido con Productos Dropshipping Especial '.Supplier::getNameById($id_supplier).' cambiado a '.$nombre_estado.'                     
-                '.$employee->firstname.' - '.date("d-m-Y H:i:s");
-
-                if (!$this->insertarMensaje($id_order, $mensaje_pedido_sin_stock_estado)) {
-                    $this->errors[] = Tools::displayError('Error generando mensaje interno de cambio de estado de pedido de dropshipping especial en pedido '.$id_order);   
-                }       
-                
-                //hacemos un LOG        
-                $mensaje_log = 'A '.$nombre_estado.' - Creación pedido materiales';
-
-                $insert_frik_pedidos_cambiados = "INSERT INTO frik_pedidos_cambiados 
-                (id_order, estado_inicial, estado_final, proceso, date_add) 
-                VALUES ($id_order ,
-                ".$this->id_estado_pendiente_de_envio." ,
-                $id_nuevo_estado ,            
-                '$mensaje_log',
-                NOW())";
-
-                Db::getInstance()->Execute($insert_frik_pedidos_cambiados); 
-            } else {
-                $this->errors[] = Tools::displayError('Error cambiando de estado pedido de dropshipping especial al pedido '.$id_order);  
-            }
-        }         
     }
 
     //función que dispone de los datos necesarios para añadir una línea de pedido a un pedido de materiales existente. Comprueba primero si el producto a añadir se encuentra ya en el pedido. Si es así añade la cantidad al pedido, si no, añade el producto al pedido.
@@ -1326,18 +1209,11 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
     }
 
     //función que busca los productos a añadir a pedido para un proveedor
-    //24/01/2025 añadimos estado del pedido del producto a la consulta. Si se trata de pedido dropshipping se sacan aquellos cuyo pedido esté en estado Pendiente de envío, si no se sacan los que no estén en ese estado
     public function getProductos($id_supplier) {
-        if ($this->dropshipping_especial) {
-            $drop = " AND ord.current_state = ".$this->id_estado_pendiente_de_envio;
-        } else {
-            $drop = " AND ord.current_state != ".$this->id_estado_pendiente_de_envio;
-        }
         //17/11/2023 Nos aseguramos de que las líneas obtenidas sean de pedidos de cliente válidos, porque peuden haber sido cancelados a posteriori
         $sql_info_productos = "SELECT pvs.id_productos_vendidos_sin_stock, pvs.id_order, pvs.id_product, pvs.id_product_attribute, pvs.product_name, pvs.product_quantity,
         psu.product_supplier_reference, psu.product_supplier_price_te,
-        IFNULL(pat.reference, pro.reference) AS product_reference, IFNULL(pat.ean13, pro.ean13) AS ean13,
-        ord.current_state AS current_state
+        IFNULL(pat.reference, pro.reference) AS product_reference, IFNULL(pat.ean13, pro.ean13) AS ean13
         FROM lafrips_productos_vendidos_sin_stock pvs
         JOIN lafrips_product_supplier psu ON psu.id_product = pvs.id_product 
             AND psu.id_product_attribute = pvs.id_product_attribute
@@ -1350,20 +1226,13 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
         AND pvs.eliminado = 0
         AND pvs.dropshipping = 0
         AND pvs.id_supply_order = 0
-        AND pvs.id_supplier_solicitar = $id_supplier
-        $drop";
+        AND pvs.id_supplier_solicitar = $id_supplier";
                 
         return Db::getInstance()->ExecuteS($sql_info_productos);
     }
 
     //función que genera un nuevo pedido de materiales con el id de proveedor que llega como parámetro. Devuelve el id del nuevo pedido
-    //27/01/2025 Si el pedido es de dropshipping especial le pondremos DROP_ como prefijo
     public function crearPedidoMateriales($id_supplier, $supply_order_reference) { 
-        $aviso = "";
-        if ($this->dropshipping_especial) {
-            $supply_order_reference = 'DROP_'.$supply_order_reference;
-            $aviso = "de Dropshipping Especial ";
-        }
         
         // $supply_order_reference = "KAR_".date('Ymd_His');
 
@@ -1392,7 +1261,7 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
         $supply_order->id_supply_order_state = 1;
 
         if ($supply_order->add()) {
-            $this->confirmations[] = "<br>Generado pedido ".$aviso."en Creación en curso para proveedor ".Supplier::getNameById($id_supplier)." con referencia ".pSQL($supply_order_reference);
+            $this->confirmations[] = "<br>Generado pedido en Creación en curso para proveedor ".Supplier::getNameById($id_supplier)." con referencia ".pSQL($supply_order_reference);
 
             return $supply_order->id;
         } else {
@@ -1401,17 +1270,8 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
     }
 
     //función que comprueba si existe algún pedido de materiales en Creación en curso para el id_supplier recibido, y si existe devuelve el id de pedido, si no devuelve false
-    //27/01/2025 Para los dropshipping espceiales, si sabemos que este pedido de materiales es para eso, buscaremos un pedido con "DROP_" en el comienzo del nombre para si existe meter en el los productos, e ignorar si existe un pedido de materiales normal.
     public function pedidosCreacionCurso($id_supplier) {
-        if ($this->dropshipping_especial) {
-            $drop = " AND reference LIKE 'DROP_%'";
-            $aviso = "de Dropshipping Especial ";
-        } else {
-            $drop = "";
-            $aviso = "";
-        }
-
-        $sql_pedido_pendiente = "SELECT id_supply_order, reference FROM lafrips_supply_order WHERE id_supply_order_state = 1 AND id_supplier = $id_supplier".$drop;
+        $sql_pedido_pendiente = "SELECT id_supply_order, reference FROM lafrips_supply_order WHERE id_supply_order_state = 1 AND id_supplier = $id_supplier";
         $pedido_pendiente = Db::getInstance()->executeS($sql_pedido_pendiente);
         //si no hay pedidos devolvemos false, pero si hay más de uno devolvemos las referencias para enviar aviso de error al usuario. No debe haber varios pedidos del mismo proveedor en Creación en curso
         if (!$pedido_pendiente) {
@@ -1421,7 +1281,7 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
             return $pedido_pendiente;
         } else {
             //todo correcto, devolvemos el id de pedido de materiales
-            $this->confirmations[] = "<br>Encontrado pedido ".$aviso."en estado Creación en curso para proveedor ".Supplier::getNameById($id_supplier)." con referencia ".SupplyOrder::getReferenceById($pedido_pendiente[0]['id_supply_order']);
+            $this->confirmations[] = "<br>Encontrado pedido en Creación en curso para proveedor ".Supplier::getNameById($id_supplier)." con referencia ".SupplyOrder::getReferenceById($pedido_pendiente[0]['id_supply_order']);
 
             return $pedido_pendiente[0]['id_supply_order'];
         }
@@ -1430,18 +1290,11 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
 
     //función que actualiza solicitado y id_supply_order en lafrips_productos_vendidso_sin_stock cada vez que se añade un producto a un pedido
     public function updateProductosVendidosSinStock($id_supply_order, $id_productos_vendidos_sin_stock) {
-        if ($this->dropshipping_especial) {
-            $drop = " dropshipping_especial = 1, ";            
-        } else {
-            $drop = "";            
-        }
-
         $sql_update_productos_vendidos_sin_stock = "UPDATE lafrips_productos_vendidos_sin_stock
             SET 
             solicitado = 1,                                                     
             id_supply_order = $id_supply_order,
             id_employee_supply_order = ".$this->id_employee.",
-            $drop
             date_supply_order = NOW(),
             date_upd = NOW() 
             WHERE id_productos_vendidos_sin_stock = $id_productos_vendidos_sin_stock";
