@@ -1042,7 +1042,7 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
 
                 $this->confirmations[] = $this->l('Producto en pedido '.$id_order.' marcado como Revisado. ');
                 $this->displayWarning('El pedido '.$id_order.' no está en estado Pedido Sin Stock Pagado - No se cambia a Completando Pedido. Todos sus productos vendidos sin stock están revisados. ');
-                // $this->errors[] = Tools::displayError('Revisar estado de pedido '.$id_order.' manualmente. ');
+                $this->errors[] = Tools::displayError('Revisar estado de pedido '.$id_order.' manualmente. ');
 
                 return;
             }
@@ -1166,11 +1166,9 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
 
     //función que recibe el id_supply_order y busca y organiza los productos para meter
     //24/01/2025 Para los procesos que hacemos de "dropshipping" con Amont y Redstring, por ahora, queremos que los pedidos cuyo estado sea Pendiente de envío, cuando se genere el pedido de materiales, los pase a Pendiente de envío A o R dependiendo del proveedor. Por ahora lo queremos hacer en tiempo real, cuando se genera el pedido de materiales, no cada hora como el paso a completando pedido, ya que necesitarán obtener las etiqeutas de envío. En getProductos() sacaremos el estado actual del pedido y solo los productos que corresponadan según ese estado
-    //29/01/2025 Para poder enviar desde el proveedor los pedidos que también contengan productos con stock en almacén (debe haber al menos un producto vendido sin stock en el pedido) a la hora de buscar los productos para el pedido de materiales sacaremos los que haya en productos vendidos sin stock y buscaremos en el pedido si hay también algún producto que se vendiera con stock en el momento y no aparezca en esta tabla. 
     public function completaPedidoMateriales($id_supply_order) {
-        $aviso = '';        
         if ($this->dropshipping_especial) {
-            $aviso = "de Dropshipping Especial ";            
+            $aviso = "de Dropshipping Especial ";
         }
         //obtenemos el id_supplier
         $sql_id_supplier = "SELECT id_supplier FROM lafrips_supply_order WHERE id_supply_order = $id_supply_order";
@@ -1188,20 +1186,12 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
             foreach($info_productos AS $info_producto) {
                 $this->setSupplyOrderDetail($id_supply_order, $info_producto);
 
-                $tenia_stock = 'SIN';   
-                $pedido_dropshipping_especial = '';             
-                if ($info_producto['id_productos_vendidos_sin_stock'] == 0) {
-                    //el producto es de un pedido de dropshipping especial que entró con stock y por tanto no está en lafrips_productos_vendidos_sin_stock
-                    $tenia_stock = 'CON';         
-                    $pedido_dropshipping_especial = '
-                    Vendido CON stock en pedido de dropshipping especial';           
-                }
                 //generamos mensaje para pedido indicando el pedido de materiales
                 $fecha = date("d-m-Y H:i:s");
-                $mensaje_pedido_materiales_producto = 'Producto vendido '.$tenia_stock.' stock: 
+                $mensaje_pedido_materiales_producto = 'Producto vendido sin stock: 
                 Nombre: '.$info_producto['product_name'].' 
                 Referencia: '.$info_producto['product_reference'].'
-                Solicitado a : '.Supplier::getNameById($id_supplier).$pedido_dropshipping_especial.'
+                Solicitado a : '.Supplier::getNameById($id_supplier).'
                 Añadido a Pedido de Materiales '.strtoupper($aviso).': Id: '.$id_supply_order.' - <b>'.SupplyOrder::getReferenceById($id_supply_order).'</b>
                 por '.$this->employee_name.' el '.$fecha;
 
@@ -1326,12 +1316,7 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
             $supply_order->update();                                    
         }
 
-        //si el producto es de venta sin stock y estaba en productos_vendidos_sin_stock hacemos update a la tabla, si no es que era de dropshipping especial y tenía stock en la compra, en cuyo caso insertamos en productos_vendidos_sin_stock_con_stock
-        if ($info_producto['id_productos_vendidos_sin_stock'] == 0) {
-            $this->insertProductosVendidosSinStockConStock($id_supply_order, $info_producto, $supply_order->id_supplier);
-        } else {
-            $this->updateProductosVendidosSinStock($id_supply_order, $info_producto['id_productos_vendidos_sin_stock']);
-        }        
+        $this->updateProductosVendidosSinStock($id_supply_order, $info_producto['id_productos_vendidos_sin_stock']);
 
         //"liberamos" las variables
         unset($supply_order_detail);
@@ -1342,7 +1327,6 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
 
     //función que busca los productos a añadir a pedido para un proveedor
     //24/01/2025 añadimos estado del pedido del producto a la consulta. Si se trata de pedido dropshipping se sacan aquellos cuyo pedido esté en estado Pendiente de envío, si no se sacan los que no estén en ese estado
-    //29/01/2025 Para poder enviar desde el proveedor los pedidos que también contengan productos con stock en almacén (debe haber al menos un producto vendido sin stock en el pedido) a la hora de buscar los productos para el pedido de materiales sacaremos los que haya en productos vendidos sin stock y buscaremos en el pedido si hay también algún producto que se vendiera con stock en el momento y no aparezca en esta tabla. Para ello, si $this->dropshipping_especial = true deberemos inspeccionar cada pedido de cliente de estos productos y sacar el resto de productos si hay, ya que serán del mismo proveedor. Obtendremos la misma información que en la consulta $sql_info_productos, pero para estos productos de esos pedidos y los añadiremos al resultado de la primera consulta, con un id_productos_vendidos_sin_stock que será un indicador de que este producto no está en la tabla (le ponemos valor 0). Como recorreremos el resultado preoducto a producto, cuando el id sea 0, en lugar de actualizar la tabla lafrips_productos_vendidos_sin_stock, lo que haremos será insertarlos en una nueva tabla, lafrips_productos_vendidos_sin_stock_con_stock
     public function getProductos($id_supplier) {
         if ($this->dropshipping_especial) {
             $drop = " AND ord.current_state = ".$this->id_estado_pendiente_de_envio;
@@ -1368,50 +1352,8 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
         AND pvs.id_supply_order = 0
         AND pvs.id_supplier_solicitar = $id_supplier
         $drop";
-
-        $info_productos = Db::getInstance()->ExecuteS($sql_info_productos);
-
-        if ($this->dropshipping_especial) {
-            //ahora tenemos que buscar si en los pedidos había otros productos pero que entraron con stock, para ello necesitamos los id_order de los productos de arriba y sacar de order_detail haciendo left join a pedidos y productos con productos_vendidos_sin_stock, de modo que si especificamos en el where que id_order en pvs es null, solo sacaremos los productos que no tengan línea en pvs
-            
-            $sql_info_productos_con_stock = "SELECT 0 AS id_productos_vendidos_sin_stock, ode.id_order, ode.product_id AS id_product, ode.product_attribute_id AS id_product_attribute, ode.product_name, ode.product_quantity,
-            psu.product_supplier_reference, psu.product_supplier_price_te,
-            IFNULL(pat.reference, pro.reference) AS product_reference, IFNULL(pat.ean13, pro.ean13) AS ean13,
-            ord2.current_state AS current_state
-            FROM lafrips_order_detail ode
-            LEFT JOIN lafrips_productos_vendidos_sin_stock pvs ON pvs.id_order = ode.id_order
-                AND pvs.id_product = ode.product_id
-                AND pvs.id_product_attribute = ode.product_attribute_id
-            JOIN lafrips_product_supplier psu ON psu.id_product = ode.product_id
-                AND psu.id_product_attribute = ode.product_attribute_id
-                AND psu.id_supplier = $id_supplier
-            JOIN lafrips_product pro ON pro.id_product = ode.product_id
-            LEFT JOIN lafrips_product_attribute pat ON pat.id_product = ode.product_id AND pat.id_product_attribute = ode.product_attribute_id
-            JOIN lafrips_orders ord2 ON ord2.id_order = ode.id_order
-            WHERE pvs.id_order IS NULL #con esto y el LEFT JOIN a pvs evitamos los productos que si están en pvs
-            AND ode.id_order IN 
-            (
-                SELECT DISTINCT(pvs2.id_order)
-                FROM lafrips_productos_vendidos_sin_stock pvs2            
-                JOIN lafrips_orders ord ON ord.id_order = pvs2.id_order AND ord.valid = 1
-                WHERE pvs2.checked = 1
-                AND pvs2.solicitado = 0
-                AND pvs2.eliminado = 0
-                AND pvs2.dropshipping = 0
-                AND pvs2.id_supply_order = 0
-                AND pvs2.id_supplier_solicitar = $id_supplier
-                $drop
-            )";
-
-            $info_productos_con_stock = Db::getInstance()->ExecuteS($sql_info_productos_con_stock);
-
-            //si hay resultado hay que añadirlos a $info_productos uniendo ambos resultados
-            if (count($info_productos_con_stock) > 0) {
-                $info_productos = array_merge($info_productos, $info_productos_con_stock);
-            }
-        }
                 
-        return $info_productos;
+        return Db::getInstance()->ExecuteS($sql_info_productos);
     }
 
     //función que genera un nuevo pedido de materiales con el id de proveedor que llega como parámetro. Devuelve el id del nuevo pedido
@@ -1512,26 +1454,6 @@ class AdminProductosVendidosSinStockController extends ModuleAdminController {
             $this->errors[] = Tools::displayError('Error actualizando datos de pedido de materiales para producto '.$referencia);            
         } else {
             $this->confirmations[] = "<br>Producto con referencia ".$referencia." añadido correctamente a pedido ".SupplyOrder::getReferenceById($id_supply_order);
-        }
-
-        return;
-    }
-
-    //función que inserta en lafrips_productos_vendidos_sin_stock_con_stock los productos de los pedidos de dropshipping especial que si tenían stock en la venta y por tanto no estaban en lafrips_productos_vendidos_sin_stock
-    public function insertProductosVendidosSinStockConStock($id_supply_order, $info_producto, $id_supplier) {
-        $supplier = Supplier::getNameById($id_supplier);
-        $supply_order_reference = SupplyOrder::getReferenceById($id_supply_order);
-        
-        $sql_insert = "INSERT INTO lafrips_productos_vendidos_sin_stock_con_stock
-            (id_order, id_product, id_product_attribute, product_name, product_reference, ean13, product_supplier_reference, product_supplier_price_te, product_quantity,
-            id_supplier, supplier, id_supply_order, supply_order_reference, id_employee, date_add)
-            VALUES
-            (".$info_producto['id_order'].", ".$info_producto['id_product'].", ".$info_producto['id_product_attribute'].", '".$info_producto['product_name']."', '".$info_producto['product_reference']."', '".$info_producto['ean13']."', '".$info_producto['product_supplier_reference']."', ".$info_producto['product_supplier_price_te'].", ".$info_producto['product_quantity'].", $id_supplier, '$supplier', $id_supply_order, '$supply_order_reference', ".$this->id_employee.", NOW())";
-        
-        if (Db::getInstance()->execute($sql_insert) !== true) {       
-            $this->errors[] = Tools::displayError('Error insertando datos de producto vendido CON stock para producto '.$info_producto['product_reference']);            
-        } else {
-            $this->confirmations[] = "<br>Producto vendido CON stock con referencia ".$info_producto['product_reference']." añadido correctamente a pedido ".$supply_order_reference;
         }
 
         return;
