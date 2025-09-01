@@ -5,6 +5,7 @@
  *    
  */
 
+//29/08/2025 Añadimos Heo al proceso
 //contador para los inputs
 var num_input = 1;
 
@@ -145,6 +146,7 @@ $(function(){
 
         //validamos que en referencia proveedor haya una referencia válida de cerdá, pueden ser 10 números, o 10 números, un guión bajo y una serie de caracteres. Para Karactermanía de momento son 5 números
         //cada input de referencia_proveedor tiene clase "referencia_proveedor", los chequeamos uno a uno
+        //29/08/2025 Añadimos Heo, pero sus referencias pueden ser de cualquier formato, de modo que no se chequean
         $('.referencia_proveedor').each(function() {
             if (id_supplier == 65) {
                 //el regexp indica que debe empezar por 10 digitos del 0 al 9, y se puede o no dar lo que hay entre parentesis (..)?, que sería, si se da, un guión bajo, seguido de 1 a 9 caracteres, números, letras  y guión
@@ -160,6 +162,9 @@ $(function(){
                     error = 1;
                     texto_error += '¡Debes introducir referencias válidas de Karactermanía!\n';
                 }
+            } else if (id_supplier == 4) {
+                //no se comprueba
+                
             } else {
                 error = 1;
                 texto_error += '¡Error con proveedor!\n';
@@ -295,6 +300,7 @@ $(function(){
             var referencia_buscar = $('#supplier_reference_'+input_num).val().trim();
             
             //comprobamos que la referencia introducida existe y es válida para el proveedor
+            //29/08/2025 Para Heo no comprobamos la referencia
             if (id_supplier == 65) {
                 //el regexp indica que debe empezar por 10 digitos del 0 al 9, y se puede o no dar lo que hay entre parentesis (..)?, que sería, si se da, un guión bajo, seguido de 1 a 9 caracteres, números, letras  y guión
                 //23/08/2023 arreglo regex de referencia para que admita caracter / 
@@ -396,12 +402,19 @@ $(function(){
                             //02/10/2023 Ahora, si el producto tiene stock, en principio no tendrá permitir pedido, se mira si tiene disponibilidad en catálogo. Si tiene, se pone color_correcto (verde) a la ficha. Si no tiene disponibilidad se poner color_alerta (naranja). Si no tiene stock ni permitir pedido ni disponibilidad, ponemos alerta, si no tiene stock pero si permitir pedido, se pone correcto, etc
                             var color = "";
                             var mensaje = ""; 
-                            var badge = "";                                          
+                            var badge = "";  
+                            var permite_pedidos = "";  
+                            var prepedido = "";  
+                            
+                            if (data.info_producto['product_supplier'][0]['prepedido'] == 1) {
+                                prepedido = " - <strong>PREPEDIDO</strong>";                                
+                            }
 
                             if (data.info_producto['product_supplier'][0]['out_of_stock'] == 1) {
                                 color = "color_correcto";
                                 mensaje = "Producto disponible en catálogo";
                                 badge = "badge-success";
+                                permite_pedidos = " - <strong>Permite pedidos sin Stock</strong>";
                             } else if (data.info_producto['product_supplier']['disponibilidad_catalogos']) {
                                 color = "color_alerta";
                                 mensaje = data.info_producto['product_supplier']['mensaje_catalogos']; 
@@ -417,7 +430,7 @@ $(function(){
                             //limpiamos el contenido del div de información por si contiene algo
                             $('#info_product_'+input_num).empty();
                             
-                            var informacion_producto = '<div class="panel clearfix '+color+'"><h3>Referencia correspondiente a producto de Prestashop</h3>\
+                            var informacion_producto = '<div class="panel clearfix '+color+'"><h3>Referencia correspondiente a producto de Prestashop - '+data.info_producto['product_supplier'][0]['id_product']+'</h3>\
                             <div class="col-lg-4 contenedor_imagen">\
                                 <img src="'+url_imagen+'"  width="120" height="160"/>\
                             </div>\
@@ -426,7 +439,7 @@ $(function(){
                                 <h4>'+data.info_producto['product_supplier'][0]['nombre']+'</h4>\
                                 <p>Ref:  '+data.info_producto['product_supplier'][0]['referencia']+'</p>\
                                 <p>Ean13:  '+data.info_producto['product_supplier'][0]['ean13']+'</p>\
-                                <p>Stock:  <span style="font-size: 150%">'+data.info_producto['product_supplier'][0]['stock']+'</span></p>\
+                                <p>Stock:  <span style="font-size: 150%">'+data.info_producto['product_supplier'][0]['stock']+'</span>'+permite_pedidos+prepedido+'</p>\
                                 '+disponibilidad+'\
                             </div>\
                             </div>';   

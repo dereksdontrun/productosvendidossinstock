@@ -16,6 +16,7 @@ class AdminPedidosManualesProveedorController extends ModuleAdminController {
         require_once (dirname(__FILE__) .'/../../productosvendidossinstock.php');
         require_once (dirname(__FILE__).'/../../classes/Karactermania.php');
         require_once (dirname(__FILE__).'/../../classes/Cerda.php');
+        require_once (dirname(__FILE__).'/../../classes/Heo.php');
 
         $this->lang = false;
         $this->bootstrap = true;        
@@ -63,9 +64,11 @@ class AdminPedidosManualesProveedorController extends ModuleAdminController {
         } 
 
         //preparamos le contenido del select para proveedor. a 30/08/2023 solo hacemos pedidos manuales de Cerdá y Karactermanía
+        //29/08/2025 Añadimos Heo
         $suppliers = array(
             array('id_supplier'=> 0, 'name'=> 'Selecciona proveedor'),
             array('id_supplier'=> 65, 'name'=> 'Cerdá'),
+            array('id_supplier'=> 4, 'name'=> 'Heo'),
             array('id_supplier'=> 53, 'name'=> 'Karactermanía')
         );
         
@@ -135,7 +138,7 @@ class AdminPedidosManualesProveedorController extends ModuleAdminController {
             //obtenemos el proveedor
             $id_supplier = (int) Tools::getValue('id_supplier', false);
 
-            if (in_array($id_supplier, array(53, 65))) {
+            if (in_array($id_supplier, array(4, 53, 65))) {
                 $this->gestionPedido($id_supplier);
             } else {               
                 //redirigimos al controlador, enviando por url la variable manualok, con valor 1 si es pedido correcto y valor 2 si fuera error. Se detecta en la función renderForm()
@@ -157,7 +160,7 @@ class AdminPedidosManualesProveedorController extends ModuleAdminController {
         //parent::postProcess();
     }
 
-    // función que lee el formulario para obtener las referencias de los productos y unidades a pedir y llamando a la clase Karactermania o Cerda del módulo, en función del id_supplier detectado del select, que generará los archivos necesarios para el pedido
+    // función que lee el formulario para obtener las referencias de los productos y unidades a pedir y llamando a la clase Karactermania, Cerdá o Heo del módulo, en función del id_supplier detectado del select, que generará los archivos necesarios para el pedido o la llamada a API
     public function gestionPedido($id_supplier) {
         //iniciamos manualok, variable que pasaremos por url al recargar el proceso en renderform y que vale 1 si todo ok o 2 si hay errores
         $manualok = 1;
@@ -192,7 +195,13 @@ class AdminPedidosManualesProveedorController extends ModuleAdminController {
                 //si devuelve false no se generó el pedido correctamente
                 $manualok = 2;
             }
-        }        
+        } elseif ($id_supplier == 4) {
+            //llamamos a gestionHeoManual() de la clase Heo
+            if (!Heo::gestionHeoManual($info_pedido)) {
+                //si devuelve false no se generó el pedido correctamente
+                $manualok = 2;
+            }
+        }           
 
         //redirigimos al controlador, enviando por url la variable manualok, con valor 1 si es pedido correcto y valor 2 si fuera error. Se detecta en la función renderForm()
         $token = Tools::getAdminTokenLite('AdminPedidosManualesProveedor');
@@ -207,6 +216,7 @@ class AdminPedidosManualesProveedorController extends ModuleAdminController {
     /*
     * Función que busca el producto correspondiente a la referencia de proveedor insertada. Si no lo encuentra en Prestashop (no está creado) buscará en la tabla de catálogo de Cerdá, frik_catalogo_cerda_crear, y si no está ahí, mostrará error. Devolverá algunos datos del producto, incluyendo la foto principal.
     01/09/2023 Hemos añadido Karactermanía al módulo, de modo que hay que distinguir por proveedor. DEJAMOS DE BUSCAR EN CATALOGO CERDÁ
+    //29/08/2025 Añadimos Heo para hacer los pedidos con su API
     *
     */
     public function ajaxProcessBuscaProducto(){        
@@ -235,7 +245,7 @@ class AdminPedidosManualesProveedorController extends ModuleAdminController {
         IFNULL(pat.reference, pro.reference) AS referencia, IFNULL(pat.ean13, pro.ean13) AS ean13, 
         ima.id_image AS id_imagen, CONCAT( "http://lafrikileria.com", "/", ima.id_image, "-home_default/", 
                 pla.link_rewrite, ".", "jpg") AS url_imagen,
-        ava.quantity AS stock, ava.out_of_stock AS out_of_stock
+        ava.quantity AS stock, ava.out_of_stock AS out_of_stock, pro.id_product, IF(pro.id_product IN (SELECT id_product FROM lafrips_category_product WHERE id_category = 121), 1, 0) AS prepedido
         FROM lafrips_product_supplier psu
         JOIN lafrips_product pro ON psu.id_product = pro.id_product
         JOIN lafrips_product_lang pla ON psu.id_product = pla.id_product AND pla.id_lang = 1
@@ -248,6 +258,8 @@ class AdminPedidosManualesProveedorController extends ModuleAdminController {
         LEFT JOIN lafrips_attribute_group_lang agl ON agl.id_attribute_group = atr.id_attribute_group AND agl.id_lang = 1
         WHERE psu.id_supplier = '.$id_supplier.'
         AND psu.product_supplier_reference = "'.$referencia_buscar.'"';
+
+        // die(Tools::jsonEncode(array('message'=>$sql_product_supplier))); 
 
         $product_supplier = Db::getInstance()->executeS($sql_product_supplier);
 

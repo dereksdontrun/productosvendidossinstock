@@ -392,18 +392,32 @@ $(function(){
                                 url_imagen = data.info_producto['product_supplier'][0]['url_imagen'];
                             }
 
-                            //preparamos mensaje de disponibilidad para compra                            
-                            var disponibilidad = '<p><span class="badge badge-pill badge-danger">NO DISPONIBLE</span></p>';
+                            //preparamos mensaje de disponibilidad para compra       
+                            //02/10/2023 Ahora, si el producto tiene stock, en principio no tendrá permitir pedido, se mira si tiene disponibilidad en catálogo. Si tiene, se pone color_correcto (verde) a la ficha. Si no tiene disponibilidad se poner color_alerta (naranja). Si no tiene stock ni permitir pedido ni disponibilidad, ponemos alerta, si no tiene stock pero si permitir pedido, se pone correcto, etc
+                            var color = "";
+                            var mensaje = ""; 
+                            var badge = "";                                          
 
-                            if ((data.info_producto['product_supplier'][0]['out_of_stock'] == 1) || (data.info_producto['product_supplier'][0]['stock'] > 0)) {
-                                //tiene disponibilidad si el stock es mayor que 0 o tiene permitir pedido marcado                                
-                                disponibilidad = '<p><span class="badge badge-pill badge-primary">DISPONIBLE</span></p>';
-                            } 
+                            if (data.info_producto['product_supplier'][0]['out_of_stock'] == 1) {
+                                color = "color_correcto";
+                                mensaje = "Producto disponible en catálogo";
+                                badge = "badge-success";
+                            } else if (data.info_producto['product_supplier']['disponibilidad_catalogos']) {
+                                color = "color_alerta";
+                                mensaje = data.info_producto['product_supplier']['mensaje_catalogos']; 
+                                badge = "badge-warning";                       
+                            } else if (!data.info_producto['product_supplier']['disponibilidad_catalogos']) {
+                                color = "color_error";
+                                mensaje = data.info_producto['product_supplier']['mensaje_catalogos'];    
+                                badge = "badge-danger";                            
+                            }
+
+                            var disponibilidad = `<p><span class="badge badge-pill ${badge}">${mensaje}</span></p>`;
 
                             //limpiamos el contenido del div de información por si contiene algo
                             $('#info_product_'+input_num).empty();
                             
-                            var informacion_producto = '<div class="panel clearfix color_correcto"><h3>Referencia correspondiente a producto de Prestashop</h3>\
+                            var informacion_producto = '<div class="panel clearfix '+color+'"><h3>Referencia correspondiente a producto de Prestashop</h3>\
                             <div class="col-lg-4 contenedor_imagen">\
                                 <img src="'+url_imagen+'"  width="120" height="160"/>\
                             </div>\
@@ -412,7 +426,7 @@ $(function(){
                                 <h4>'+data.info_producto['product_supplier'][0]['nombre']+'</h4>\
                                 <p>Ref:  '+data.info_producto['product_supplier'][0]['referencia']+'</p>\
                                 <p>Ean13:  '+data.info_producto['product_supplier'][0]['ean13']+'</p>\
-                                <p>Stock:  '+data.info_producto['product_supplier'][0]['stock']+'</p>\
+                                <p>Stock:  <span style="font-size: 150%">'+data.info_producto['product_supplier'][0]['stock']+'</span></p>\
                                 '+disponibilidad+'\
                             </div>\
                             </div>';   

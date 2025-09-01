@@ -26,37 +26,13 @@
 
 //todas las funciones para trabajar con pedidos Karactermanía de manera estática
 
-//03/03/2025 Vamos a hacer una parte de dropshipping con Karactermanía, cuando todos los productos de un pedido sean suyos los pediremos marcando envío dropshipping, nacional (península y Portugal) e inernacional. Se añadirá una nueva comulna al archivo de pedidos que generamos indicando CROSS, los de siempre, DROPN dropshipping península, que ellos enviarán con las etiquetas de GLS que les envviaremos, y DROPI para internacional, que saldrán con UPS.
-
 class Karactermania
 {
-    //04/03/2025 Declaramos una variable estática, ya que al solo tener funciones estáticas en la clase y no declarar objeto no se puede utilizar una variable normal. Luego se le asigna valor o se la llama con self::$cross_drop
-    //Le ponemos por defecto valor CROSS, de modo que los peididos manuales la lleven sin tener que mirar un pedido de prestashop, ya que no existe dicho pedido
-    private static $cross_drop = "CROSS";
-
-    private static $id_pendiente_envio_k = 90;
-
     //función que dado un id_order busca sus productos de Karactermanía en lafrips_productos_vendidos_sin_stock y genera el archivo necesario en el servidor FTP 
     //obtenemos de productos vendidos sin stock la info de la venta y la insertamos en lafrips_pedidos_karactermania si no existe de antemano. Si existe comprobamos cantidades y si son diferentes las pedimos (si ya fue pedido pedimos la diferencia si es superior) Después, si no está marcado como ya pedido, generamos el csv correspondiente al pedido. Finalmente comprobamos si en el pedido original hay más productos vendidos sin stock, marcamos estos como revisados y si no hay ninguno más pasamos el pedido a Completando Pedido. ESTO SE HARä EN PROCESO HORARIO PARA TODOS LOS PROVEEDORES
     //comprobamos cada producto para saber si tiene  categoría prepedido 121, almacenado en lafrips_productos_vendidos_sin_stock, si la tienen no se solicitan por ftp
-    //03/03/2025 Tenemos que comprobar lo primero si este pedido puede ser de dropshipping especial, son los pedidos que solo tengan productos de Karactermanía y entren con GLS (península incluido Portugal) o UPS si es internacional. Si es así se indicará en otra columna del archivo de pedido.
-    //07/03/2025 Los pedidos de cliente que vayan a ser dropshipping deberán llevar una 4 columna DROPI o DROPN, una 5º con nuestro id_order, una 6º con nombre y apellidos de cliente, una 7º con el destino (localidad)
     public static function gestionKaractermania($id_order) {
-        //03/03/2025 comprobamos si el pedido puede ser dropshipping y de qué tipo. La función devolverá "CROSS", "DROPN" o "DROPI" según el caso
-        self::checkDropshippingEspecial($id_order);
-
-        //si el pedido es CROSS solo pediremos los productos que entraron en venta sin stock, ya que van al almacén, pero si es DROP tenemos que pedir todos los productos del pedido para que todo vaya desde Karactermanía al cliente
-        if (self::$cross_drop == 'CROSS') {
-            $sql_productos_vendidos_sin_stock = "SELECT * FROM lafrips_productos_vendidos_sin_stock WHERE id_order_detail_supplier = 53 AND id_order = $id_order";
-        } else {
-            $sql_productos_vendidos_sin_stock = "SELECT ode.product_id AS id_product, ode.product_attribute_id AS id_product_attribute, ode.product_name, ode.product_reference, 
-            ode.product_supplier_reference, ode.product_quantity, 
-            IF ((SELECT id_product FROM lafrips_category_product WHERE id_category = 121 AND id_product = ode.product_id) = ode.product_id, 1, 0) AS prepedido,
-            ord.date_add
-            FROM lafrips_order_detail ode
-            JOIN lafrips_orders ord ON ord.id_order = ode.id_order 
-            WHERE ode.id_order = $id_order";
-        }        
+        $sql_productos_vendidos_sin_stock = "SELECT * FROM lafrips_productos_vendidos_sin_stock WHERE id_order_detail_supplier = 53 AND id_order = $id_order";
 
         $productos_karactermania = Db::getInstance()->ExecuteS($sql_productos_vendidos_sin_stock);
 
@@ -124,10 +100,10 @@ class Karactermania
                 } else {
                     //hacemos insert
                     $sql_insert = "INSERT INTO lafrips_pedidos_karactermania
-                    (id_order, id_product, id_product_attribute, referencia_karactermania, unidades, prepedido, product_name, ean, referencia_prestashop, cross_drop, date_original, date_add)
+                    (id_order, id_product, id_product_attribute, referencia_karactermania, unidades, prepedido, product_name, ean, referencia_prestashop, date_original, date_add)
                     VALUES
                     (
-                        $id_order, $id_product, $id_product_attribute, '$referencia_karactermania', $unidades, $prepedido, '$product_name', '$ean', '$referencia_prestashop', '".self::$cross_drop."', '$date_original', NOW()
+                        $id_order, $id_product, $id_product_attribute, '$referencia_karactermania', $unidades, $prepedido, '$product_name', '$ean', '$referencia_prestashop', '$date_original', NOW()
                     )";
 
                     Db::getInstance()->execute($sql_insert);
@@ -136,96 +112,16 @@ class Karactermania
             }
 
             //ahora tenemos en lafrips_pedidos_karactermania los productos con ftp 0 y los ids correspondientes para generar el archivo. Si eran productos ya pedidos y con ftp=1 o prepedidos, se ignorarán en la sql de la función de crear ftp
-            //10/03/2025 Por la posición del hook de productosvendidossinstock, parece que el pedido aún no está en estado Verificando stock en este momento, (debe haber un error porque el hook es hookActionOrderStatusPostUpdate, AFTER orderstatus update..) si cambiamos aquí el estado queda antes de cambiar a verificando, con lo que se queda igual, lo llevamos de momento a cambia_estado_pedido_caja_sorpresa.php junto al de Amont y Redstring, aunque en este caso ya estará procesado para Karactermanía con lo que ya sabemos si el pedido es CROSS DROP o ninguno.
-            // if (self::setKaractermaniaFTP($id_order)) {
-            //     //04/03/2025 Si es pedido de dropshipping especial, lo cambiamos de estado aquí a Pendiente de envío K, si no se quedará como Verificando Stock y se cambiará a Completando pedido en el proceso horario
-            //     if (self::$cross_drop !== 'CROSS') {
-            //         self::cambiaEstadoPendienteEnvio($id_order);
-            //     }
-
-            //     return;
-            // } else {
-            //     return;
-            // }
-
-            self::setKaractermaniaFTP($id_order);
-
-            return;
+            if (Karactermania::setKaractermaniaFTP($id_order)) {
+                return;
+            } else {
+                return;
+            }
         }   
 
         return;
     }
 
-    //esta función comprueba si el pedido solo tiene productos de Karactermanía y si entró con GLS o UPS, devolviendo CROSS para los que no cumplen esas condiciones, DROPN para los pedidos con GLS a península, incluido Portugal, y DROPI para los internacionales de UPS
-    public static function checkDropshippingEspecial($id_order) {
-        //lo primero comprobamos que no haya más que un proveedor en el pedido, todos los productos han de ser del mismo, en este caso Karactermanía, pero como estamos aquí ya sabemos que al menos uno es de Karactermanía
-        $supplier_count = "SELECT COUNT(DISTINCT psu.id_supplier) AS supplier_count
-            FROM lafrips_order_detail ode
-            JOIN lafrips_product_supplier psu ON psu.id_product = ode.product_id 
-                AND psu.product_supplier_reference = ode.product_supplier_reference    
-                AND psu.id_product_attribute = ode.product_attribute_id
-            JOIN lafrips_product pro ON pro.id_product = ode.product_id 
-                AND pro.id_supplier = psu.id_supplier
-            WHERE ode.id_order = $id_order
-            GROUP BY ode.id_order";
-
-        if (Db::getInstance()->getValue($supplier_count) > 1) {
-            //no hacemos dropshipping 
-            self::$cross_drop = "CROSS";
-
-            return;
-        }
-
-        //sacamos id_carrier de ups
-        $id_carrier_ups = Db::getInstance()->getValue("SELECT id_carrier FROM lafrips_ups_carrier WHERE service_code = '11' AND deleted = 0");
-
-        //sacamos los id_reference de transportistas GLS, Domicilio, 24 y Portugal
-        $gls_carriers = array();
-        //24
-        $gls_carriers[] = Configuration::get('GLS_SERVICIO_SELECCIONADO_GLS24');
-
-        //Domicilio
-        $gls_carriers[] = Configuration::get('GLS_SERVICIO_SELECCIONADO_GLSECO');
-
-        //Portugal - Ahora enviamos con GLS domicilio y parcel, el gls internacional no estamos utilizando
-        // $gls_carriers[] = Configuration::get('GLS_SERVICIO_SELECCIONADO_GLSEBP');
-
-        //Parcel shop
-        $gls_carriers[] = Configuration::get('GLS_SERVICIO_SELECCIONADO_GLSPARCEL');
-
-        //instanciamos el pedido para obtener su transportista
-        $order = new Order($id_order); 
-
-        //sacamos su id_carrier para comprobar si es de GLS o UPS           
-        $id_carrier = $order->id_carrier;
-
-        //sacamos el id_reference del carrier del pedido
-        $id_order_carrier_reference = Db::getInstance()->getValue("SELECT id_reference FROM lafrips_carrier WHERE id_carrier = $id_carrier");
-
-        //comprobamos si el carrier es GLS        
-        if (in_array($id_order_carrier_reference, $gls_carriers)) {
-            //es de GLS, drop nacional
-            self::$cross_drop = "DROPN";
-
-            return;
-        }
-
-        //comprobamos si el carrier es UPS        
-        if ($id_carrier == $id_carrier_ups) {
-            //es de UPS, drop internacional
-            self::$cross_drop = "DROPI";
-
-            return;
-        }
-
-        //aunque solo contiene Karactermanía, no es GLS ni UPS
-        self::$cross_drop = "CROSS";
-        
-        return;
-    }
-
-    //07/03/2025 El archivo a enviar tendrá:
-    // nuestro id cliente;referencia karactermania;unidades;cross_drop;id_order;nombre cliente;localidad destino
     public static function setKaractermaniaFTP($id_order) {
         $error_ftp = 0;
         $mensaje = "";
@@ -233,24 +129,12 @@ class Karactermania
         $ids_pedidos_karactermania = array();
 
         //sacamos la info necesaria. Ponemos forzado el id_supplier y la referencei de karactermania como referencia_proveedor dado que la info será enviada a una función general común en Herramientas.php (setMensajePedido) que se podrá usar para otros proveedores
-        // $sql_info_ftp = "SELECT id_pedidos_karactermania, 53 AS id_supplier, id_product, id_product_attribute, product_name, referencia_prestashop, cross_drop, referencia_karactermania AS referencia_proveedor, unidades, pedido_manual, id_empleado
-        // FROM lafrips_pedidos_karactermania
-        // WHERE ftp = 0
-        // AND prepedido = 0
-        // AND error = 0
-        // AND id_order = $id_order";
-
-        //añadimos que saque nombre de cliente y localidad de destino, LEFT a las tablas para los pedidos manuales
-        $sql_info_ftp = "SELECT pek.id_pedidos_karactermania, 53 AS id_supplier, pek.id_product, pek.id_product_attribute, pek.product_name, pek.referencia_prestashop, pek.cross_drop, pek.referencia_karactermania AS referencia_proveedor, pek.unidades, pek.pedido_manual, pek.id_empleado,
-        IFNULL(CONCAT(cus.firstname, ' ', cus.lastname), 'CROSS') AS nombre_cliente, IFNULL(adr.city, 'CROSS') AS localidad    
-        FROM lafrips_pedidos_karactermania pek
-        LEFT JOIN lafrips_orders ord ON ord.id_order = pek.id_order
-        LEFT JOIN lafrips_customer cus ON cus.id_customer = ord.id_customer
-        LEFT JOIN lafrips_address adr ON adr.id_address = ord.id_address_delivery
-        WHERE pek.ftp = 0        
-        AND pek.prepedido = 0
-        AND pek.error = 0
-        AND pek.id_order = $id_order";
+        $sql_info_ftp = "SELECT id_pedidos_karactermania, 53 AS id_supplier, id_product, id_product_attribute, product_name, referencia_prestashop, referencia_karactermania AS referencia_proveedor, unidades, pedido_manual, id_empleado
+        FROM lafrips_pedidos_karactermania
+        WHERE ftp = 0
+        AND prepedido = 0
+        AND error = 0
+        AND id_order = $id_order";
 
         if ($info_ftp = Db::getInstance()->executeS($sql_info_ftp)) {
             //preparamos el archivo para subir al FTP
@@ -265,20 +149,11 @@ class Karactermania
             $file = fopen($path.$filename,'w');
 
             foreach($info_ftp AS $info) {
-                //si el pedido es CROSS en nombre y localidad enviaremos CROSS
-                $nombre_cliente = $info['nombre_cliente'];
-                $localidad = $info['localidad'];
-
-                if (self::$cross_drop == 'CROSS') {
-                    $nombre_cliente = 'CROSS';
-                    $localidad = 'CROSS';
-                }
-
-                $linea_csv = array($id_cliente, $info['referencia_proveedor'], $info['unidades'], $info['cross_drop'], $id_order, $nombre_cliente, $localidad);
+                $linea_csv = array($id_cliente, $info['referencia_proveedor'], $info['unidades']);
                 fputcsv($file, $linea_csv, $delimiter);
 
-                $info_pedido .= $id_cliente.';'.$info['referencia_proveedor'].';'.$info['unidades'].';'.$info['cross_drop'].';'.$id_order.';'.$nombre_cliente.';'.$localidad.'<br>';
-                $mensaje .= $id_cliente.';'.$info['referencia_proveedor'].';'.$info['unidades'].';'.$info['cross_drop'].';'.$id_order.';'.$nombre_cliente.';'.$localidad.'<br>';
+                $info_pedido .= $id_cliente.';'.$info['referencia_proveedor'].';'.$info['unidades'].'<br>';
+                $mensaje .= $id_cliente.';'.$info['referencia_proveedor'].';'.$info['unidades'].'<br>';
 
                 //marcador que indica que el pedido se creó manualmente y por tanto no existe pedido de cliente, 0 es no manual, 1 es manual, cuando salgamos del foreach de infoftp la variable seguirá teniendo el valor para luego. Igual para id_empleado que utilizaremos para enviar email al empleado que haya realizado el pedido
                 $pedido_manual = $info['pedido_manual'];
@@ -286,7 +161,6 @@ class Karactermania
 
                 //hacemos update a lafrips_productos_vendidos_sin_stock para marcar como revisado y a lafrips_pedidos_karactermania para marcar ftp a 1, si el pedido es manual no existe en la tabla y pasamos
                 //16/11/2023 marcamos solicitado para que los pedidos no aparezcan para generar pedidos de materiales en productos vendiso sin stock
-                //05/03/2025 Los productos que no están vendidos sin stock en el caso de pedidos DROP no funcionará el update pero no debería dar error
                 if (!$pedido_manual) {
                     $sql_update_productos_vendidos_sin_stock = "UPDATE lafrips_productos_vendidos_sin_stock
                     SET
@@ -343,9 +217,6 @@ class Karactermania
                     $error_ftp = 1;
                     $mensaje .= "<br><br>Error haciendo login en servidor FTP";                      
                 } else {
-                    //forzar modo activo o pasivo. Parece que en el nuevo servidor con arsys está configurado diferente
-                    ftp_pasv($ftp_connection, true);
-
                     //creamos el archivo origen en el servidor de destino, en la carpeta por defecto a la que nos conectamos
                     //ftp_put(conexion, nombre_archivo_destino, ruta_y_nombre_archivo_origen, transfer mode FTP_ASCII o FTP_BINARY)
                     //FTP_ASCII para texto, FTP_BINARY otros archivos, excel por ejemplo
@@ -402,7 +273,6 @@ class Karactermania
                     foreach($info_ftp AS $info) {    
                         //hacemos update a lafrips_productos_vendidos_sin_stock para marcar como revisado 0
                         //16/11/2023 también quitamos solicitado para que sea evidente en la lista de productos vendidos sin stock que no se ha pedido
-                        //05/03/2025 Los productos que no están vendidos sin stock en el caso de pedidos DROP no funcionará el update pero no debería dar error
                         $sql_update_productos_vendidos_sin_stock = "UPDATE lafrips_productos_vendidos_sin_stock
                         SET          
                         solicitado = 0,
@@ -471,15 +341,15 @@ class Karactermania
 
             //enviamos email de aviso con mensaje, dependiendo de si hay error
             $info = []; 
-            $info['{archivo_expediciones}'] = $error_archivo.'Pedido '.$es_manual.$id_order.' - '.self::$cross_drop.' a Karactermanía '.date("Y-m-d H:i:s");
+            $info['{archivo_expediciones}'] = $error_archivo.'Pedido '.$es_manual.$id_order.' a Karactermanía '.date("Y-m-d H:i:s");
             $info['{errores}'] = $mensaje;
-            $info['asunto'] = $error_archivo.'Pedido '.$es_manual.$id_order.' - '.self::$cross_drop.' realizado a Karactermanía '.date("Y-m-d H:i:s");
+            $info['asunto'] = $error_archivo.'Pedido '.$es_manual.$id_order.' realizado a Karactermanía '.date("Y-m-d H:i:s");
 
             // $empleados = array(
             //     array('nombre' => 'Sergio', 'email' => 'sergio@lafrikileria.com')
             // );
 
-            self::enviaEmail($info, $empleados);
+            Karactermania::enviaEmail($info, $empleados);
 
             if ($error_ftp || !$encontrado) {
                 //este return en caso de error solo interpreta el false para los pedidos manuales, los pedidos normales no leen el return
@@ -521,7 +391,7 @@ class Karactermania
         $sql_id_order = 'SELECT MAX(id_order) FROM lafrips_pedidos_karactermania WHERE pedido_manual = 1';
         $id_order = Db::getInstance()->getValue($sql_id_order) + 1;
         
-        //recorremos $info_pedido como array, puede contener un producto o varios, y por cada uno meteremos los datos en lafrips_pedidos_karactermania
+        //recorremos $info_pedido como array, puede contener un producto ovarios, y por cada uno meteremos los datos en lafrips_pedidos_karactermania
         foreach ($info_pedido AS $info_producto) {
             $referencia = $info_producto['referencia'];
             $unidades = $info_producto['unidades'];
@@ -557,78 +427,26 @@ class Karactermania
             $ean = $producto_en_prestashop[0]['ean13'];  
 
             //hacemos insert
-            //03/03/2025 Para pedidos manuales siempre se trata de CROSS docking, ya que no vienen de pedidos de Prestashop y no hay cliente al que enviar vía dropshipping
             $sql_insert = "INSERT INTO lafrips_pedidos_karactermania
-            (id_order, id_product, id_product_attribute, referencia_karactermania, unidades, product_name, ean, referencia_prestashop, cross_drop, pedido_manual, id_empleado, date_original, date_add)
+            (id_order, id_product, id_product_attribute, referencia_karactermania, unidades, product_name, ean, referencia_prestashop, pedido_manual, id_empleado, date_original, date_add)
             VALUES
             (
-                $id_order, $id_product, $id_product_attribute, '$referencia', $unidades, '$product_name', '$ean', '$referencia_prestashop', 'CROSS', 1, $id_empleado, NOW(), NOW()
+                $id_order, $id_product, $id_product_attribute, '$referencia', $unidades, '$product_name', '$ean', '$referencia_prestashop', 1, $id_empleado, NOW(), NOW()
             )";
 
             Db::getInstance()->execute($sql_insert);   
         }
 
         //ahora tenemos en lafrips_pedidos_karactermania los productos con ftp 0 y los ids correspondientes para generar el archivo.
-        if (self::setKaractermaniaFTP($id_order) == false) {
+        if (Karactermania::setKaractermaniaFTP($id_order) == false) {
             return false;
         } else {
             return true;
         }           
 
-        // return;
+        return;
     }
 
-    //NO USAMOS porque en este punto el pedido aún no tiene el estado Verificando Stock y si cambiamos aquí lo siguiente será que le asigne dicho estado con lo que no quedaría en Pendiente de Envío K
-    public static function cambiaEstadoPendienteEnvio($id_order) {
-        //cambiamos estado de orden a Completando Pedido, ponemos id_employee 44 que es Automatizador, para log
-        $history = new OrderHistory();
-        $history->id_order = $id_order;
-        $history->id_employee = 44;
-        //comprobamos si ya tiene el invoice, payment etc, porque puede duplicar el método de pago. hasInvoice() devuelve true o false, y se pone como tercer argumento de changeIdOrderState(). 
-        $order = new Order($id_order);
-        $id_estado_inicial = $order->current_state;
-
-        $use_existing_payment = !$order->hasInvoice();
-        $history->changeIdOrderState(self::$id_pendiente_envio_k, $id_order, $use_existing_payment); 
-        $history->add(true);
-
-        if ($history->save()) {           
-            //generamos mensaje para pedido 
-            // $mensaje_pedido_sin_stock_estado = 'Pedido con Productos Vendidos Sin Stock '.self::$cross_drop.' Karactermanía cambiado a Pendiente de Envío K                     
-            // revisado automáticamente por el Santo Proceso el '.date("d-m-Y H:i:s");
-
-            // HerramientasVentaSinStock::setMensajePedido($id_order, $info_ftp); no tenemos los datos aquí
-
-            //hacemos un LOG        
-            $mensaje_log = 'A Pendiente de envío K - Productos Karactermania';
-
-            $insert_frik_pedidos_cambiados = "INSERT INTO frik_pedidos_cambiados 
-            (id_order, estado_inicial, estado_final, proceso, date_add) 
-            VALUES ($id_order ,
-            $id_estado_inicial ,
-            ".self::$id_pendiente_envio_k." ,            
-            '$mensaje_log',
-            NOW())";
-
-            Db::getInstance()->Execute($insert_frik_pedidos_cambiados); 
-
-            return true;
-        }
-
-        //enviamos email de aviso con mensaje de error por no cambiar estado
-        $info = []; 
-        $info['{archivo_expediciones}'] = 'ERROR CAMBIANDO ESTADO PENDIENTE ENVIO K - Pedido '.$id_order.' - '.self::$cross_drop.' a Karactermanía '.date("Y-m-d H:i:s");
-        $info['{errores}'] = 'El cambio de estado a Pendiente de envío K no se completó';
-        $info['asunto'] = 'ERROR CAMBIANDO ESTADO PENDIENTE ENVIO K - Pedido '.$id_order.' - '.self::$cross_drop.' realizado a Karactermanía '.date("Y-m-d H:i:s");
-
-        $empleados = array(
-            array('nombre' => 'Sergio', 'email' => 'sergio@lafrikileria.com')
-        );
-
-        self::enviaEmail($info, $empleados);
-
-        return false;   
-    }
 
     public static function enviaEmail($info, $empleados) {
         foreach ($empleados AS $empleado) {

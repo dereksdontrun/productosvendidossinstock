@@ -333,8 +333,10 @@ class Cerda
             $unidades = $info_producto['unidades'];
 
             //buscar id_product e id_product_attribute, ean referencia prestashop. 
-            $sql_producto_en_prestashop = 'SELECT psu.id_product AS id_product, psu.id_product_attribute AS id_product_attribute, IFNULL(pat.reference, pro.reference) AS referencia_prestashop,
-            IFNULL(CONCAT(pla.name, " : ", CONCAT(agl.name, " - ", atl.name)), pla.name) AS nombre, 
+            //11/02/2025 cambiamos la forma de sacar el nombre porque para productos con más de un tipo de atributo saca una línea por tipo
+            //IFNULL(CONCAT(pla.name, " : ", CONCAT(agl.name, " - ", atl.name)), pla.name) AS nombre,
+            $sql_producto_en_prestashop = 'SELECT psu.id_product AS id_product, psu.id_product_attribute AS id_product_attribute, IFNULL(pat.reference, pro.reference) AS referencia_prestashop,            
+            IFNULL(CONCAT(pla.name, " : ", GROUP_CONCAT(DISTINCT agl.name, " - ", atl.name order by agl.name SEPARATOR ", ")), pla.name) as nombre,
             IFNULL(pat.ean13, pro.ean13) AS ean13
             FROM lafrips_product_supplier psu
             JOIN lafrips_product pro ON psu.id_product = pro.id_product

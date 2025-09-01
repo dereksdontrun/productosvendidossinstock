@@ -32,6 +32,7 @@ require_once(dirname(__FILE__).'/classes/Disfrazzes.php');
 require_once(dirname(__FILE__).'/classes/Globomatik.php');
 require_once(dirname(__FILE__).'/classes/Dmi.php');
 require_once(dirname(__FILE__).'/classes/Karactermania.php');
+require_once(dirname(__FILE__).'/classes/Cerda.php');
 require_once(dirname(__FILE__).'/classes/HerramientasVentaSinStock.php');
 
 class Productosvendidossinstock extends Module
@@ -369,7 +370,9 @@ class Productosvendidossinstock extends Module
         
         $num_dropshipping = 0;        
         $info_dropshipping = array();
+        //estos marcadores cambiarán a 1 si algún producto vendido sin stock pertenece a dicho proveedor
         $check_karactermania = 0;
+        $check_cerda = 0;
         
         foreach ($order_products as $order_product){                                          
                         
@@ -544,6 +547,11 @@ class Productosvendidossinstock extends Module
             if (($id_order_detail_supplier == 53) && Configuration::get('PEDIDOS_FTP_KARACTERMANIA')) {
                 $check_karactermania = 1;
             }
+
+            //23/11/2023 Vamos a hacer pedidos a Cerdá de forma automática metiendo un csv a nuestra carpeta de servidor cada vez que entre un pedido, al contrario que como hasta ahora, que se hacía una vez por hora con un cron. Al no considerarse Dropshipping lo que hacemos es enviar los datos a otra función que lo gestione una vez repasado todo el pedido para productos vendidos sin stock
+            if (($id_order_detail_supplier == 65) && Configuration::get('PEDIDOS_FTP_CERDA')) {
+                $check_cerda = 1;
+            }
             
             //analizamos si el producto es dropshipping. En este punto ya sabemos que es vendido sin stock
             //sacamos los id_supplier de  los proveedores que funcionan como dropshipping
@@ -622,8 +630,13 @@ class Productosvendidossinstock extends Module
         $this->checkProductosEliminados($order->id, $productos_vendidos_sin_stock, $id_employee);
 
         //05/06/2023 Si tenemos configurado el envío de pedidos a Karactermanía con FTP comprobamos si hay algún producto vendido sin stock suyo y procesamos
-        if ($check_karactermania && Configuration::get('PEDIDOS_FTP_KARACTERMANIA')) {
+        if ($check_karactermania) {
             Karactermania::gestionKaractermania($order->id);
+        }
+
+        //23/11/2023 Si tenemos configurado el envío de pedidos a Cerdá con FTP comprobamos si hay algún producto vendido sin stock suyo y procesamos
+        if ($check_cerda) {
+            Cerda::gestionCerda($order->id);
         }
 
         if (empty($info_dropshipping)) {
@@ -945,7 +958,8 @@ class Productosvendidossinstock extends Module
     //25/04/2022 hasta acotar que "vendedores" dropshipping envían a cada sitio, Baleares también pasa a implicar envío previo a almacén (Globomatik no envía a Baleares)
     //habría que marcar como envio_almacen en la tabla lafrips_dropshipping a 1 por cada proveedor si cada uno tiene unas condiciones, pero de momento se hace general
     // Los pedidos con pago Contra reembolso los dirigimos a almacén también
-    //devuelve el id del insert en la tabla como retorno de la llamada a la función insertDropshippingAddress    
+    //devuelve el id del insert en la tabla como retorno de la llamada a la función insertDropshippingAddress 
+    // 25/03/2024 Hemos añadido una zona de envío Madrid para recogida en tienda allí. Los pedidos para ese destibo que lleven dropshipping deberán ir primero a almacén siempre, de modo que tenemos que detectar el transportista lo primero de todo, y si es recogida en tienda Madrid  o como se llame, se marcará $almacen = 1. Para ello   
     public function setAddressInfo($id_order) {
         //sacamos el método de pago, si es Contrareembolso o ClickCanarias, se enviará a almacén, sino, comprobamos id_address_delivery para saber a donde va y si se desvía a almacén. 
         $order = new Order($id_order);
@@ -953,6 +967,21 @@ class Productosvendidossinstock extends Module
         if (Validate::isLoadedObject($order)) {
             $almacen = 0;
 
+            //25/03/2024 comprobamos el id_carrier de recogida en tienda madrid
+            if (Configuration::get('ID_CARRIER_REFERENCE_RECOGIDA_TIENDA_MADRID')) {
+                
+                if ($order->id_carrier == Db::getInstance()->getValue("SELECT id_carrier 
+                FROM lafrips_carrier 
+                WHERE active = 1 
+                AND deleted = 0 
+                AND id_reference = ".(int)Configuration::get('ID_CARRIER_REFERENCE_RECOGIDA_TIENDA_MADRID')." 
+                ORDER BY id_carrier DESC")) {
+                    $almacen = 1;
+
+                }                
+            } 
+
+            //comprobamos si el pago es contra reembolso o clickcanarias
             if ($order->module == 'codfee' || $order->module == 'clickcanarias') {
                 $almacen = 1;
             } 

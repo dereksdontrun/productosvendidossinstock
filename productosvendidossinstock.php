@@ -33,6 +33,7 @@ require_once(dirname(__FILE__).'/classes/Globomatik.php');
 require_once(dirname(__FILE__).'/classes/Dmi.php');
 require_once(dirname(__FILE__).'/classes/Karactermania.php');
 require_once(dirname(__FILE__).'/classes/Cerda.php');
+require_once(dirname(__FILE__).'/classes/Heo.php');
 require_once(dirname(__FILE__).'/classes/HerramientasVentaSinStock.php');
 
 class Productosvendidossinstock extends Module
@@ -373,6 +374,7 @@ class Productosvendidossinstock extends Module
         //estos marcadores cambiarán a 1 si algún producto vendido sin stock pertenece a dicho proveedor
         $check_karactermania = 0;
         $check_cerda = 0;
+        $check_heo = 0;
         
         foreach ($order_products as $order_product){                                          
                         
@@ -552,6 +554,11 @@ class Productosvendidossinstock extends Module
             if (($id_order_detail_supplier == 65) && Configuration::get('PEDIDOS_FTP_CERDA')) {
                 $check_cerda = 1;
             }
+
+            //28/08/2025 Vamos a hacer pedidos a Heo de forma automática utilizando su API. Al no considerarse Dropshipping lo que hacemos es enviar los datos a otra función que lo gestione una vez repasado todo el pedido para productos vendidos sin stock
+            if (($id_order_detail_supplier == 4) && Configuration::get('PEDIDOS_API_HEO')) {
+                $check_heo = 1;
+            }
             
             //analizamos si el producto es dropshipping. En este punto ya sabemos que es vendido sin stock
             //sacamos los id_supplier de  los proveedores que funcionan como dropshipping
@@ -637,6 +644,11 @@ class Productosvendidossinstock extends Module
         //23/11/2023 Si tenemos configurado el envío de pedidos a Cerdá con FTP comprobamos si hay algún producto vendido sin stock suyo y procesamos
         if ($check_cerda) {
             Cerda::gestionCerda($order->id);
+        }
+
+        //28/08/2025 Si tenemos configurado el envío de pedidos a Heo con API comprobamos si hay algún producto vendido sin stock suyo y procesamos
+        if ($check_heo) {
+            Heo::gestionHeo($order->id);
         }
 
         if (empty($info_dropshipping)) {
