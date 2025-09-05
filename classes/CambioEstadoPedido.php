@@ -258,15 +258,38 @@ class CambioEstadoPedido
 
     public function getPedidosVerificandoStock() {
         //sacamos los pedidos de lafrips_productos_vendidos_sin_stock que se encuentren en estado Verificando Stock y cuyos productos estén todos revisados
-        $sql_pedidos_verificando_stock = "SELECT pvs.id_order AS id_order 
+        //04/09/2025 Desde que hacemos el dropshipping especial, que hace que pedidos de Karactermanía, Redstring, etc, pasen de Verificando Stock a Pendiente de envío para que los tengan localizados, se ha dado algún caso en el que uno de estos pedidos ha entrado menos de 2 minutos antes de que este proceso CambioEstadoPedido se dispare, y al otro proceso que cambia a esos estados (cambia_estado_pedido_caja_sorpresa.php) que se ejecuta cada 2 minutos no le ha dado tiempo a cambiarlo antes de ejecutarse, y al ser un pedido que por ser dropshipping se le cambia automaticamente los productos pedidos a checked , revisado, este proceso los ha dejado en Pendiente de Envío y se han "perdido" para el proceso de dropshipping. De modo que modificamos la SQL para que se compruebe que, además de estar en estado Verificando Stock y sus productos revisados, lleve en ese estado al menos 5 minutos, de modo que haya tenido tiempo de ejecutarse seguro el proceso de cada dos minutos.
+        // $sql_pedidos_verificando_stock = "SELECT pvs.id_order AS id_order 
+        // FROM lafrips_productos_vendidos_sin_stock pvs
+        // JOIN lafrips_orders ord ON ord.id_order = pvs.id_order
+        // WHERE ord.current_state = ".$this->id_verificando_stock."
+        // AND (SELECT COUNT(id_product)
+        //         FROM lafrips_productos_vendidos_sin_stock 
+        //         WHERE checked = 0
+        //         AND eliminado = 0
+        //         AND id_order = pvs.id_order) = 0
+        // GROUP BY pvs.id_order";
+
+        $sql_pedidos_verificando_stock = "SELECT pvs.id_order AS id_order
         FROM lafrips_productos_vendidos_sin_stock pvs
-        JOIN lafrips_orders ord ON ord.id_order = pvs.id_order
+        JOIN lafrips_orders ord 
+            ON ord.id_order = pvs.id_order
+        JOIN lafrips_order_history ohi 
+            ON ohi.id_order = ord.id_order
         WHERE ord.current_state = ".$this->id_verificando_stock."
         AND (SELECT COUNT(id_product)
                 FROM lafrips_productos_vendidos_sin_stock 
                 WHERE checked = 0
-                AND eliminado = 0
-                AND id_order = pvs.id_order) = 0
+                    AND eliminado = 0
+                    AND id_order = pvs.id_order) = 0        
+        AND ohi.id_order_state = ".$this->id_verificando_stock."
+        AND ohi.date_add = (
+                SELECT MAX(ohi2.date_add) 
+                FROM lafrips_order_history ohi2
+                WHERE ohi2.id_order = ord.id_order 
+                AND ohi2.id_order_state = ".$this->id_verificando_stock."
+            )        
+        AND ohi.date_add <= NOW() - INTERVAL 5 MINUTE
         GROUP BY pvs.id_order";
 
         return Db::getInstance()->ExecuteS($sql_pedidos_verificando_stock);  

@@ -146,11 +146,12 @@ class Heo
                 "items" => []
             ];
 
+            //en lugar de psarles la referencia de prestashop le pasamos id+atributo
             foreach($info_api AS $info) {
                 $data["items"][] = [
                     "productNumber" => $info["referencia_proveedor"],
                     "quantity" => (int)$info["unidades"],
-                    "orderItemReference" => $info["referencia_prestashop"]
+                    "orderItemReference" => $info["id_product"].'_'.$info["id_product_attribute"]
                 ];                
 
                 //marcador que indica que el pedido se creó manualmente y por tanto no existe pedido de cliente, 0 es no manual, 1 es manual, cuando salgamos del foreach de info_api la variable seguirá teniendo el valor para luego. Igual para id_empleado que utilizaremos para enviar email al empleado que haya realizado el pedido
